@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <drawable name="ic_check_circle">@android:drawable/ic_menu_save</drawable>
+    <drawable name="ic_error">@android:drawable/ic_dialog_alert</drawable>
+    <drawable name="ic_info">@android:drawable/ic_menu_info_details</drawable>
+    <drawable name="ic_warning">@android:drawable/ic_menu_report_image</drawable>
+</resources>

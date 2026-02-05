@@ -10,8 +10,10 @@
 
     <color name="lightBlue_color">#FF578FCC</color>
 
-    <color name="error">#eb4333</color>
-    <color name="success">#439b53</color>
+    <color name="success_green">#439b53</color>
+    <color name="error_red">#eb4333</color>
+    <color name="info_blue">#2196F3</color>
+    <color name="warning_yellow">#FF9800</color>
 
     <color name="night_mask">#00000000</color>
 

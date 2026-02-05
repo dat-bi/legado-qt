@@ -5,30 +5,40 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     app:cardCornerRadius="12dp"
-    app:cardElevation="4dp">
+    app:cardElevation="4dp"
+    app:cardPreventCornerOverlap="false"
+    android:foreground="?attr/selectableItemBackground"
+    android:translationZ="2dp"
+    android:stateListAnimator="@animator/card_state_list_animator">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:padding="16dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:clipChildren="false"
+        android:clipToPadding="false">
 
-        <!-- Icon -->
+        <!-- Icon with ripple effect -->
         <ImageView
             android:id="@+id/iv_icon"
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:src="@drawable/ic_bookmark"
-            android:contentDescription="@string/app_name" />
+            android:contentDescription="@string/app_name"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true" />
 
-        <!-- Text container -->
+        <!-- Text container with animations -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="16dp"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:animateLayoutChanges="true">
 
             <TextView
                 android:id="@+id/tv_title"
@@ -37,7 +47,8 @@
                 tools:text="Names.txt"
                 android:textSize="16sp"
                 android:textStyle="bold"
-                android:textColor="?android:attr/textColorPrimary" />
+                android:textColor="?android:attr/textColorPrimary"
+                android:transitionName="title" />
 
             <TextView
                 android:id="@+id/tv_status"
@@ -46,34 +57,38 @@
                 android:layout_marginTop="4dp"
                 tools:text="Đang dùng: Mặc định"
                 android:textColor="?android:attr/textColorSecondary"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:transitionName="status" />
 
         </LinearLayout>
 
-        <!-- Action buttons -->
+        <!-- Action buttons with ripple -->
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:animateLayoutChanges="true">
 
             <ImageButton
                 android:id="@+id/btn_reset"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_restore"
                 android:contentDescription="@string/restore"
                 android:visibility="gone"
-                tools:visibility="visible" />
+                tools:visibility="visible"
+                android:transitionName="reset_button" />
 
             <ImageButton
                 android:id="@+id/btn_import"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="8dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="12dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_import"
-                android:contentDescription="@string/import_on_line" />
+                android:contentDescription="@string/import_on_line"
+                android:transitionName="import_button" />
 
         </LinearLayout>
 

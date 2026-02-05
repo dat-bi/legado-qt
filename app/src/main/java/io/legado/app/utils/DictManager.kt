@@ -2,137 +2,106 @@ package io.legado.app.utils
 
 import android.content.Context
 import android.net.Uri
-import io.legado.app.help.storage.ImportOldData
+import android.util.Log
+import io.legado.app.model.DictionaryImportState
+import io.legado.app.model.TranslationLoader
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import splitties.init.appCtx
 import java.io.File
-import java.io.FileOutputStream
 
 object DictManager {
 
+    private const val TAG = "DictManager"
     private const val DICT_DIR = "translate/custom"
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     
-    // Define dictionary types and their filenames
     enum class DictType(val fileName: String) {
         NAMES("Names.txt"),
         VIETPHRASE("VietPhrase.txt"),
         PHIENAM("ChinesePhienAmWords.txt")
     }
 
-    /**
-     * Get the directory where custom dictionaries are stored.
-     */
+    private val _importState = MutableStateFlow<DictionaryImportState>(DictionaryImportState.Idle)
+    val importState: StateFlow<DictionaryImportState> = _importState
+
+    fun importDict(context: Context, uri: Uri, type: DictType): Job {
+        return scope.launch {
+            try {
+                val startTime = System.currentTimeMillis()
+                Log.d(TAG, "=== IMPORT START: ${type.fileName} ===")
+                
+                _importState.value = DictionaryImportState.Loading("Đang đọc ${type.fileName}...")
+                
+                // Step 1: Open stream
+                val t1 = System.currentTimeMillis()
+                val inputStream = context.contentResolver.openInputStream(uri) 
+                    ?: throw Exception("Không thể mở file")
+                Log.d(TAG, "Step 1 - Open stream: ${System.currentTimeMillis() - t1}ms")
+                
+                val destFile = getCustomDictFile(type)
+                var count = 0
+                
+                // Step 2: Copy file
+                val t2 = System.currentTimeMillis()
+                inputStream.bufferedReader(Charsets.UTF_8).useLines { lines ->
+                    destFile.bufferedWriter(Charsets.UTF_8).use { writer ->
+                        lines.forEach { line ->
+                            if (line.contains("=") && line.isNotBlank()) {
+                                writer.write(line)
+                                writer.newLine()
+                                count++
+                            }
+                        }
+                    }
+                }
+                Log.d(TAG, "Step 2 - Copy file ($count lines): ${System.currentTimeMillis() - t2}ms")
+                
+                if (count > 0) {
+                    // Step 3: Compile dictionary (THIS IS LIKELY THE SLOW PART)
+                    _importState.value = DictionaryImportState.Loading("Đang biên dịch từ điển...")
+                    val t3 = System.currentTimeMillis()
+                    Log.d(TAG, "Step 3 - Starting reloadType...")
+                    TranslationLoader.reloadType(type)
+                    Log.d(TAG, "Step 3 - reloadType done: ${System.currentTimeMillis() - t3}ms")
+                    
+                    // Step 4: Clear cache
+                    val t4 = System.currentTimeMillis()
+                    withContext(Dispatchers.Main) { TranslateUtils.clearCache() }
+                    Log.d(TAG, "Step 4 - Clear cache: ${System.currentTimeMillis() - t4}ms")
+                    
+                    _importState.value = DictionaryImportState.Success(count)
+                    Log.d(TAG, "=== IMPORT DONE: ${System.currentTimeMillis() - startTime}ms total ===")
+                } else {
+                    _importState.value = DictionaryImportState.Error("Không có dữ liệu hợp lệ")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Import failed", e)
+                _importState.value = DictionaryImportState.Error(e.message ?: "Lỗi không xác định")
+            }
+        }
+    }
+
+    fun cancelImport() {
+        scope.coroutineContext.cancelChildren()
+        _importState.value = DictionaryImportState.Idle
+    }
+
     fun getCustomDictDir(): File {
         val dir = File(appCtx.filesDir, DICT_DIR)
-        if (!dir.exists()) {
-            dir.mkdirs()
-        }
+        if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
-    /**
-     * Get the file object for a specific dictionary type.
-     */
-    fun getCustomDictFile(type: DictType): File {
-        return File(getCustomDictDir(), type.fileName)
-    }
+    fun getCustomDictFile(type: DictType) = File(getCustomDictDir(), type.fileName)
 
-    /**
-     * Check if a custom dictionary exists.
-     */
-    fun hasCustomDict(type: DictType): Boolean {
-        return getCustomDictFile(type).exists()
-    }
+    fun hasCustomDict(type: DictType) = getCustomDictFile(type).exists()
 
-    /**
-     * Import a dictionary file from a URI.
-     * @param context Context
-     * @param uri Source URI
-     * @param type Dictionary Type
-     * @return Boolean success
-     */
-    fun importDict(context: Context, uri: Uri, type: DictType): Boolean {
-        return try {
-            val inputStream = context.contentResolver.openInputStream(uri) ?: return false
-            val destFile = getCustomDictFile(type)
-            
-            // Basic validation: Check if file is text (optional, but good practice)
-            // For now, simply copy.
-            
-            val result = filterAndCopyFile(inputStream, destFile)
-            inputStream.close()
-            result
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    /**
-     * Filter and copy dictionary file.
-     * Rules:
-     * 1. Keep only the first meaning after splitting by "/"
-     * 2. Remove lines that contain numbers AND chapter keywords (Quyển, Chương, Tiết, Hồi...)
-     */
-    private fun filterAndCopyFile(inputStream: java.io.InputStream, outputFile: File): Boolean {
-        try {
-            val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
-            val writer = java.io.BufferedWriter(java.io.FileWriter(outputFile))
-
-            val noiseRegex = Regex(".*\\d.*")
-            val chapterKeywords = Regex(".*(Quyển|Chương|Tiết|Hồi|卷|回|章|幕|集|节).*")
-
-            var line: String? = reader.readLine()
-            while (line != null) {
-                if (line.isNotBlank()) {
-                    // Rule 2: Remove noise
-                    if (line.matches(noiseRegex) && line.matches(chapterKeywords)) {
-                        line = reader.readLine()
-                        continue
-                    }
-
-                    // Rule 1: Filter meanings
-                    val processedLine = if (line.contains("=")) {
-                        val parts = line.split("=", limit = 2)
-                        if (parts.size == 2) {
-                            val key = parts[0]
-                            val valParts = parts[1].split("/")
-                            "$key=${valParts[0]}"
-                        } else {
-                            line
-                        }
-                    } else {
-                        line
-                    }
-
-                    writer.write(processedLine)
-                    writer.newLine()
-                }
-                line = reader.readLine()
-            }
-
-            writer.flush()
-            writer.close()
-            reader.close()
-            return true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return false
-        }
-    }
-
-    /**
-     * Delete a custom dictionary file.
-     */
     fun deleteCustomDict(type: DictType): Boolean {
-        val file = getCustomDictFile(type)
-        // Also delete cache
         val cacheFile = File(appCtx.filesDir, "dict_cache/user_${type.fileName}.bin")
         if (cacheFile.exists()) cacheFile.delete()
-        
-        return if (file.exists()) {
-            file.delete()
-        } else {
-            false
-        }
+        val file = getCustomDictFile(type)
+        return file.exists() && file.delete()
     }
 }

@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import splitties.init.appCtx
 import java.io.File
 import java.io.FileInputStream
@@ -21,70 +23,61 @@ object TranslationLoader {
 
     @Volatile
     private var translationData: TranslationData? = null
-
-    @Volatile
-    private var isLoading = false
+    
+    // Mutex for synchronization
+    private val mutex = kotlinx.coroutines.sync.Mutex()
 
     /**
      * Load translation data (lazy loading, singleton pattern)
      */
     suspend fun loadTranslationData(): TranslationData? = withContext(Dispatchers.IO) {
-        // Return cached data if available
-        if (translationData != null) {
-            // android.util.Log.d("TranslationLoader", "Returning cached data")
-            return@withContext translationData
-        }
+        // Double-check locking pattern with Mutex
+        // 1. Fast path (no lock)
+        if (translationData != null) return@withContext translationData
 
-        // Prevent concurrent loading
-        if (isLoading) {
-            android.util.Log.d("TranslationLoader", "Waiting for other thread to load...")
-            while (isLoading) {
-                delay(100)
-                if (translationData != null) return@withContext translationData
-            }
-        }
+        mutex.withLock {
+            // 2. Slow path (inside lock)
+            if (translationData != null) return@withContext translationData
 
-        isLoading = true
-        android.util.Log.d("TranslationLoader", "Starting loadTranslationData...")
-        val startTime = System.currentTimeMillis()
-        try {
-            val namesDeferred = async { 
-                val t = System.currentTimeMillis()
-                val d = loadOrCompile(DictManager.DictType.NAMES, "names.bin") 
-                android.util.Log.d("TranslationLoader", "Loaded NAMES in ${System.currentTimeMillis() - t}ms")
-                d
+            android.util.Log.d("TranslationLoader", "Starting loadTranslationData...")
+            val startTime = System.currentTimeMillis()
+            try {
+                val namesDeferred = async { 
+                    val t = System.currentTimeMillis()
+                    val d = loadOrCompile(DictManager.DictType.NAMES, "names.bin") 
+                    android.util.Log.d("TranslationLoader", "Loaded NAMES in ${System.currentTimeMillis() - t}ms")
+                    d
+                }
+                val vpDeferred = async { 
+                    val t = System.currentTimeMillis()
+                    val d = loadOrCompile(DictManager.DictType.VIETPHRASE, "vietphrase.bin") 
+                    android.util.Log.d("TranslationLoader", "Loaded VIETPHRASE in ${System.currentTimeMillis() - t}ms")
+                    d
+                }
+                val phienAmDeferred = async { 
+                    val t = System.currentTimeMillis()
+                    val d = loadOrCompile(DictManager.DictType.PHIENAM, "phienam.bin") 
+                    android.util.Log.d("TranslationLoader", "Loaded PHIENAM in ${System.currentTimeMillis() - t}ms")
+                    d
+                }
+    
+                translationData = TranslationData(
+                    namesDeferred.await(),
+                    vpDeferred.await(),
+                    phienAmDeferred.await()
+                )
+                
+                android.util.Log.d("TranslationLoader", "Total load time: ${System.currentTimeMillis() - startTime}ms")
+                translationData
+            } catch (e: Exception) {
+                android.util.Log.e("TranslationLoader", "Error loading data", e)
+                e.printStackTrace()
+                null
             }
-            val vpDeferred = async { 
-                val t = System.currentTimeMillis()
-                val d = loadOrCompile(DictManager.DictType.VIETPHRASE, "vietphrase.bin") 
-                android.util.Log.d("TranslationLoader", "Loaded VIETPHRASE in ${System.currentTimeMillis() - t}ms")
-                d
-            }
-            val phienAmDeferred = async { 
-                val t = System.currentTimeMillis()
-                val d = loadOrCompile(DictManager.DictType.PHIENAM, "phienam.bin") 
-                android.util.Log.d("TranslationLoader", "Loaded PHIENAM in ${System.currentTimeMillis() - t}ms")
-                d
-            }
-
-            translationData = TranslationData(
-                namesDeferred.await(),
-                vpDeferred.await(),
-                phienAmDeferred.await()
-            )
-            
-            android.util.Log.d("TranslationLoader", "Total load time: ${System.currentTimeMillis() - startTime}ms")
-            translationData
-        } catch (e: Exception) {
-            android.util.Log.e("TranslationLoader", "Error loading data", e)
-            e.printStackTrace()
-            null
-        } finally {
-            isLoading = false
         }
     }
 
-    private fun loadOrCompile(type: DictManager.DictType, assetBin: String, retry: Boolean = true): BinaryDictionary {
+    private suspend fun loadOrCompile(type: DictManager.DictType, assetBin: String, retry: Boolean = true): BinaryDictionary {
         val cacheDir = File(appCtx.filesDir, "dict_cache")
         if (!cacheDir.exists()) cacheDir.mkdirs()
 
@@ -95,7 +88,15 @@ object TranslationLoader {
 
             // Compile if missing or outdated
             if (!cacheFile.exists() || cacheFile.lastModified() < txtFile.lastModified()) {
-                DictionaryCompiler.compile(txtFile, cacheFile)
+                withContext(kotlinx.coroutines.NonCancellable) {
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(appCtx, "Đang cập nhật từ điển ${type.name}, vui lòng đợi...", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    DictionaryCompiler.compile(txtFile, cacheFile)
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(appCtx, "Đã cập nhật xong ${type.name}!", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             return try {
                 mapFile(cacheFile)
@@ -174,11 +175,87 @@ object TranslationLoader {
     }
 
     /**
-     * Reload specific dictionary type
+     * Reload specific dictionary type only (not all 3)
      */
-    suspend fun reloadType(type: DictManager.DictType) {
-        // Since we load all at once, we just clear and let next request reload
-        // Or we could be granular, but parallel loading is fast enough (10-50ms)
-        clearCache()
+    suspend fun reloadType(type: DictManager.DictType) = withContext(Dispatchers.IO) {
+        val startTime = System.currentTimeMillis()
+        android.util.Log.d("TranslationLoader", "reloadType START: ${type.fileName}")
+        
+        val cacheDir = File(appCtx.filesDir, "dict_cache")
+        if (!cacheDir.exists()) cacheDir.mkdirs()
+        
+        val txtFile = DictManager.getCustomDictFile(type)
+        val cacheFile = File(cacheDir, "user_${type.fileName}.bin")
+        
+        // Delete old cache to force recompile
+        if (cacheFile.exists()) cacheFile.delete()
+        
+        // Compile new dictionary
+        android.util.Log.d("TranslationLoader", "Compiling ${txtFile.name}...")
+        val compileStart = System.currentTimeMillis()
+        io.legado.app.model.dictionary.DictionaryCompiler.compile(txtFile, cacheFile)
+        android.util.Log.d("TranslationLoader", "Compile done: ${System.currentTimeMillis() - compileStart}ms")
+        
+        // Load the new binary
+        val newDict = mapFile(cacheFile)
+        android.util.Log.d("TranslationLoader", "Loaded new dict")
+        
+        // Update in-memory data (thread-safe)
+        mutex.withLock {
+            val current = translationData
+            translationData = when {
+                current == null -> {
+                    // First load - just create with default empty for others
+                    when (type) {
+                        DictManager.DictType.NAMES -> TranslationData(newDict, current?.vietPhrase ?: newDict, current?.chinesePhienAm ?: newDict)
+                        DictManager.DictType.VIETPHRASE -> TranslationData(current?.names ?: newDict, newDict, current?.chinesePhienAm ?: newDict)
+                        DictManager.DictType.PHIENAM -> TranslationData(current?.names ?: newDict, current?.vietPhrase ?: newDict, newDict)
+                    }
+                }
+                else -> {
+                    when (type) {
+                        DictManager.DictType.NAMES -> { current.names.close(); current.copy(names = newDict) }
+                        DictManager.DictType.VIETPHRASE -> { current.vietPhrase.close(); current.copy(vietPhrase = newDict) }
+                        DictManager.DictType.PHIENAM -> { current.chinesePhienAm.close(); current.copy(chinesePhienAm = newDict) }
+                    }
+                }
+            }
+        }
+        
+        android.util.Log.d("TranslationLoader", "reloadType DONE: ${System.currentTimeMillis() - startTime}ms total")
+    }
+
+    /**
+     * Reset to asset dictionary (after deleting custom dict)
+     */
+    suspend fun reloadFromAsset(type: DictManager.DictType) = withContext(Dispatchers.IO) {
+        android.util.Log.d("TranslationLoader", "reloadFromAsset: ${type.fileName}")
+        
+        // Delete user cache
+        val cacheDir = File(appCtx.filesDir, "dict_cache")
+        val userCache = File(cacheDir, "user_${type.fileName}.bin")
+        if (userCache.exists()) userCache.delete()
+        
+        // Clear and reload from asset using loadOrCompile
+        mutex.withLock {
+            val assetBin = when (type) {
+                DictManager.DictType.NAMES -> "names.bin"
+                DictManager.DictType.VIETPHRASE -> "vietphrase.bin"
+                DictManager.DictType.PHIENAM -> "phienam.bin"
+            }
+            
+            val newDict = loadOrCompile(type, assetBin)
+            
+            val current = translationData
+            if (current != null) {
+                when (type) {
+                    DictManager.DictType.NAMES -> { current.names.close(); translationData = current.copy(names = newDict) }
+                    DictManager.DictType.VIETPHRASE -> { current.vietPhrase.close(); translationData = current.copy(vietPhrase = newDict) }
+                    DictManager.DictType.PHIENAM -> { current.chinesePhienAm.close(); translationData = current.copy(chinesePhienAm = newDict) }
+                }
+            }
+        }
+        
+        android.util.Log.d("TranslationLoader", "reloadFromAsset DONE: ${type.fileName}")
     }
 }
