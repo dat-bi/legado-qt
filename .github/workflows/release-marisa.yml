@@ -1,0 +1,103 @@
+name: Release Build (MARISA-Trie)
+
+on:
+  push:
+    branches:
+      - branch-MARISA-Trie
+    paths:
+      - 'CHANGELOG.md'
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/branch-MARISA-Trie'
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.set-ver.outputs.version }}
+      play: ${{ steps.check.outputs.play }}
+      sign: ${{ steps.check.outputs.sign }}
+    steps:
+      - id: set-ver
+        run: |
+          echo "version=$(date -d "8 hour" -u +3.%y.%m%d%H)" >> $GITHUB_OUTPUT
+      - id: check
+        run: |
+          if [ ! -z "${{ secrets.RELEASE_KEY_STORE }}" ]; then
+            echo "sign=yes" >> $GITHUB_OUTPUT
+          fi
+          if [ ! -z "${{ secrets.SERVICE_ACCOUNT_JSON }}" ]; then
+            echo "play=yes" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    needs: prepare
+    if: ${{ needs.prepare.outputs.sign }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      product: app
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: branch-MARISA-Trie
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: 17
+
+      - name: Release Apk Sign
+        env:
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_STORE: ${{ secrets.RELEASE_KEY_STORE }}
+        run: |
+          echo -e "\n" >> gradle.properties
+          echo RELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS" >> gradle.properties
+          echo RELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD" >> gradle.properties
+          echo RELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD" >> gradle.properties
+          echo RELEASE_STORE_FILE='./key.jks' >> gradle.properties
+          echo "$RELEASE_KEY_STORE" | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
+
+      - name: Unify Version Name
+        run: |
+          echo "Số phiên bản thống nhất"
+          sed "/def version/c def version = \"${{ env.VERSION }}\"" $GITHUB_WORKSPACE/app/build.gradle  -i
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build With Gradle
+        run: |
+          echo "Bắt đầu build app MARISA-Trie"
+          chmod +x gradlew
+          ./gradlew assembleApprelease --build-cache --parallel --daemon --warning-mode all
+
+      - name: Organize the Files
+        run: |
+          mkdir -p ${{ github.workspace }}/apk/
+          cp -rf ${{ github.workspace }}/app/build/outputs/apk/*/*/*.apk ${{ github.workspace }}/apk/
+
+      - name: Upload App To Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legado_marisa_release
+          path: ${{ github.workspace }}/apk/*.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: legado_marisa_${{ env.VERSION }}
+          tag_name: marisa-${{ env.VERSION }}
+          body_path: ${{ github.workspace }}/CHANGELOG.md
+          draft: false
+          prerelease: false
+          files: ${{ github.workspace }}/apk/*.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
