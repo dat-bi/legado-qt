@@ -34,7 +34,7 @@ abstract class DictDatabase : RoomDatabase() {
                     DictDatabase::class.java,
                     DATABASE_NAME
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .allowMainThreadQueries() // Allow for fast dict lookups
                 .build()
                 .also { instance = it }

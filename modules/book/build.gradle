@@ -12,7 +12,7 @@ android {
         }
     }
     defaultConfig {
-        minSdk 21
+        minSdk = 21
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -24,10 +24,10 @@ android {
     }
     lint {
         checkDependencies = true
-        targetSdk 36
+        targetSdk = 36
     }
     testOptions {
-        targetSdk 36
+        targetSdk = 36
     }
 }
 

@@ -1529,7 +1529,7 @@
     <string name="sc_no_parameters">No parameters</string>
     <string name="start_read_aloud_error">Error starting read aloud\n%1$s</string>
     <string name="sc_read_config_error">Error reading layout configuration</string>
-    <string name="sc_read_font_error">Error reading font %s\n%s</string>
+    <string name="sc_read_font_error">Error reading font %1$s\n%2$s</string>
     <string name="sc_open_link_failed">Opening link failed</string>
     <string name="sc_cover_decrypt_failed">Decoding level 2 cover failed</string>
     <string name="sc_illegal_path">Invalid path</string>
@@ -1566,7 +1566,7 @@
     <string name="sc_theme_share">Share the topic</string>
     <string name="tts_server_error">TTS server error: %1$s</string>
     <string name="select_browser">Please select a browser</string>
-    <string name="sc_first_download">Initial download %s >> %s</string>
+    <string name="sc_first_download">Initial download %1$s >> %2$s</string>
     <string name="upload_failed">Upload failed, %1$s</string>
     <string name="sc_download_url_rule_cannot_be_empty">Download URL rule cannot be empty</string>
     <string name="sc_request_jump_url">%s is asking to go to URL/Application, confirm?</string>

@@ -236,6 +236,7 @@ class VideoPlayService : BaseService() {
 
     @SuppressLint("UnspecifiedImmutableFlag")
     private fun initMediaSession() {
+        @Suppress("DEPRECATION")
         mediaSessionCompat.setFlags(
             MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or
                     MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS

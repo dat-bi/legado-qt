@@ -7,8 +7,10 @@ import io.legado.app.utils.LogUtils
 import io.legado.app.utils.toastOnUi
 import splitties.init.appCtx
 import io.legado.app.R
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.launch
 
+@OptIn(DelicateCoroutinesApi::class)
 object AppLog {
 
     private val mLogs = arrayListOf<Triple<Long, String, Throwable?>>()

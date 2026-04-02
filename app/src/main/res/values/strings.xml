@@ -1529,7 +1529,7 @@
     <string name="sc_no_parameters">Không có tham số</string>
     <string name="start_read_aloud_error">Lỗi khởi động đọc to\n%1$s</string>
     <string name="sc_read_config_error">Lỗi đọc cấu hình bố cục</string>
-    <string name="sc_read_font_error">Lỗi đọc phông chữ %s\n%s</string>
+    <string name="sc_read_font_error">Lỗi đọc phông chữ %1$s\n%2$s</string>
     <string name="sc_open_link_failed">Mở liên kết thất bại</string>
     <string name="sc_cover_decrypt_failed">Giải mã bìa cấp 2 thất bại</string>
     <string name="sc_illegal_path">Đường dẫn không hợp lệ</string>
@@ -1566,7 +1566,7 @@
     <string name="sc_theme_share">Chia sẻ chủ đề</string>
     <string name="tts_server_error">Lỗi máy chủ TTS: %1$s</string>
     <string name="select_browser">Vui lòng chọn trình duyệt</string>
-    <string name="sc_first_download">Tải xuống lần đầu %s &gt;&gt; %s</string>
+    <string name="sc_first_download">Tải xuống lần đầu %1$s &gt;&gt; %2$s</string>
     <string name="upload_failed">Tải lên thất bại, %1$s</string>
     <string name="sc_download_url_rule_cannot_be_empty">Quy tắc URL tải xuống không được để trống</string>
     <string name="sc_request_jump_url">%s đang yêu cầu chuyển đến URL/Ứng dụng, xác nhận?</string>

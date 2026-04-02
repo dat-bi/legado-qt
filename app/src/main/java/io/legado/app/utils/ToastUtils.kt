@@ -1,4 +1,5 @@
 @file:Suppress("unused")
+@file:OptIn(DelicateCoroutinesApi::class)
 
 package io.legado.app.utils
 
@@ -11,10 +12,11 @@ import io.legado.app.databinding.ViewToastBinding
 import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.bottomBackground
 import io.legado.app.lib.theme.getPrimaryTextColor
-import splitties.systemservices.layoutInflater
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import splitties.systemservices.layoutInflater
 
 private var toast: Toast? = null
 
@@ -25,7 +27,7 @@ fun Context.toastOnUi(message: Int, duration: Int = Toast.LENGTH_SHORT) {
 }
 
 @SuppressLint("InflateParams")
-@Suppress("DEPRECATION")
+@Suppress("DEPRECATION", "SetTextI18n")
 fun Context.toastOnUi(message: CharSequence?, duration: Int = Toast.LENGTH_SHORT) {
     if (message == null) return
     if (io.legado.app.utils.TranslateUtils.isTranslateEnabled()) {
@@ -38,6 +40,7 @@ fun Context.toastOnUi(message: CharSequence?, duration: Int = Toast.LENGTH_SHORT
     }
 }
 
+@Suppress("DEPRECATION")
 private fun showActualToast(context: Context, message: CharSequence, duration: Int) {
     runOnUI {
         kotlin.runCatching {
