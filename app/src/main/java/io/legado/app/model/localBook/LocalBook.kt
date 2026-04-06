@@ -69,6 +69,7 @@ import kotlinx.coroutines.currentCoroutineContext
 object LocalBook {
 
     private val nameAuthorPatterns = arrayOf(
+        Pattern.compile("^\\[.+?\\]\\s*()(.+?)\\s*作者：(.+)$"),
         Pattern.compile("(.*?)《([^《》]+)》.*?作者：(.*)"),
         Pattern.compile("(.*?)《([^《》]+)》(.*)"),
         Pattern.compile("(^)(.+) 作者：(.+)$"),

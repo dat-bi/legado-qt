@@ -25,8 +25,10 @@ import io.legado.app.utils.exists
 import io.legado.app.utils.find
 import io.legado.app.utils.inputStream
 import io.legado.app.utils.isUri
+import io.legado.app.utils.TranslateUtils
 import io.legado.app.utils.normalizeFileName
 import io.legado.app.utils.toastOnUi
+import kotlinx.coroutines.runBlocking
 import splitties.init.appCtx
 import java.io.File
 import java.time.LocalDate
@@ -319,7 +321,11 @@ fun Book.isSameNameAuthor(other: Any?): Boolean {
 fun Book.getExportFileName(suffix: String): String {
     val jsStr = AppConfig.bookExportFileName
     if (jsStr.isNullOrBlank()) {
-        return "$name Tác giả: ${getRealAuthor()}.$suffix"
+        if (TranslateUtils.isTranslateEnabled()) {
+            val translatedName = runBlocking { TranslateUtils.translateMeta(name) }
+            return "[$translatedName] $name 作者：${getRealAuthor()}.$suffix"
+        }
+        return "$name 作者：${getRealAuthor()}.$suffix"
     }
     val bindings = buildScriptBindings { bindings ->
         bindings["epubIndex"] = ""// 兼容老版本,修复可能存在的错误
@@ -330,7 +336,14 @@ fun Book.getExportFileName(suffix: String): String {
         RhinoScriptEngine.eval(jsStr, bindings).toString() + "." + suffix
     }.onFailure {
         AppLog.put("Lỗi quy tắc tên sách khi xuất, sử dụng quy tắc mặc định\n${it.localizedMessage}", it)
-    }.getOrDefault("$name Tác giả: ${getRealAuthor()}.$suffix")
+    }.getOrDefault(
+        if (TranslateUtils.isTranslateEnabled()) {
+            val translatedName = runBlocking { TranslateUtils.translateMeta(name) }
+            "[$translatedName] $name 作者：${getRealAuthor()}.$suffix"
+        } else {
+            "$name 作者：${getRealAuthor()}.$suffix"
+        }
+    )
 }
 
 /**
@@ -342,7 +355,12 @@ fun Book.getExportFileName(
     jsStr: String? = AppConfig.episodeExportFileName
 ): String {
     // 默认规则
-    val default = "$name Tác giả: ${getRealAuthor()} [${epubIndex}].$suffix"
+    val default = if (TranslateUtils.isTranslateEnabled()) {
+        val translatedName = runBlocking { TranslateUtils.translateMeta(name) }
+        "[$translatedName] $name 作者：${getRealAuthor()}[${epubIndex}].$suffix"
+    } else {
+        "$name 作者：${getRealAuthor()}[${epubIndex}].$suffix"
+    }
     if (jsStr.isNullOrBlank()) {
         return default
     }

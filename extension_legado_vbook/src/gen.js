@@ -6,7 +6,8 @@ function execute(url, page) {
         let item_list = doc.data
         const data = [];
         item_list.forEach((e, index) => {
-            let type_book = (e.originName.includes("🎨") || e.originName.includes("✐")) ? "&type=comic" : "";
+            let isComic = (e.type & 64) !== 0;
+            let type_book = isComic ? "&type=comic" : "";
             let book_url = encodeURIComponent(e.bookUrl)
 
             data.push({
