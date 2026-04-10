@@ -104,6 +104,9 @@ class ContentProcessor private constructor(
         var effectiveReplaceRules: ArrayList<ReplaceRule>? = null
         val replaceBook by lazy { book.toReplaceBook() }
         if (content != "null") {
+            if (book.isVideo || book.isImage) {
+                return BookContent(false, mContent.split("\n").filter { it.isNotBlank() }, null)
+            }
             //去除重复标题
             val fileName = chapter.getFileName("nr")
             if (!removeSameTitleCache.contains(fileName)) try {

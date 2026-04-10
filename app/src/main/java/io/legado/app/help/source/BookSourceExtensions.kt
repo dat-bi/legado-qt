@@ -139,11 +139,20 @@ fun BookSource.exploreKindsJson(): String {
 }
 
 fun BookSource.getBookType(): Int {
+    checkAutoType()
     return when (bookSourceType) {
-        BookSourceType.file -> BookType.text or BookType.webFile
-        BookSourceType.image -> BookType.image
         BookSourceType.audio -> BookType.audio
+        BookSourceType.image -> BookType.image
         BookSourceType.video -> BookType.video
+        BookSourceType.file -> BookType.text or BookType.webFile
         else -> BookType.text
+    }
+}
+
+fun BookSource.checkAutoType() {
+    if (bookSourceType == BookSourceType.default) {
+        if (bookSourceName.contains("🎨") && getContentRule().imageStyle == "FULL") {
+            bookSourceType = BookSourceType.image
+        }
     }
 }

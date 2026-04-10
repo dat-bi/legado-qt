@@ -16,9 +16,9 @@ const sortLabels = { recent: 'Mới cập nhật', reading: 'Đang đọc', name
 
 const typeFilters = [
   { value: 'all', label: 'Tất cả', icon: '📚' },
-  { value: 'text', label: 'Chữ', icon: '📖' },
-  { value: 'comic', label: 'Tranh', icon: '🖼️' },
-  { value: 'audio', label: 'Nói', icon: '🎧' },
+  { value: 'text', label: 'Truyện chữ', icon: '📖' },
+  { value: 'comic', label: 'Truyện tranh', icon: '🖼️' },
+  { value: 'audio', label: 'Truyện nói', icon: '🎧' },
   { value: 'video', label: 'Video', icon: '🎬' },
 ];
 

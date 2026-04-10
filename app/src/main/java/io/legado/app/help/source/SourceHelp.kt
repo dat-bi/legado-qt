@@ -140,6 +140,7 @@ object SourceHelp {
 
     fun insertBookSource(vararg bookSources: BookSource) {
         val bookSourcesGroup = bookSources.groupBy {
+            it.checkAutoType()
             is18Plus(it.bookSourceUrl)
         }
         bookSourcesGroup[true]?.forEach {

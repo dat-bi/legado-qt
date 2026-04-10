@@ -6,6 +6,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.bumptech.glide.Glide
 import io.legado.app.api.ReturnData
 import io.legado.app.R
+import io.legado.app.constant.BookType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.Book
 import io.legado.app.data.entities.BookProgress
@@ -61,7 +62,8 @@ object BookController {
      * All books in bookshelf
      */
     fun getBookshelf(translate: Boolean): ReturnData {
-        val books = appDb.bookDao.all
+        // Lọc bỏ sách video khỏi API kệ sách
+        val books = appDb.bookDao.all.filter { it.type and BookType.video == 0 }
         val returnData = ReturnData()
         return if (books.isEmpty()) {
             returnData.setErrorMsg(appCtx.getString(R.string.no_books_added))
@@ -418,7 +420,8 @@ object BookController {
                 
                 // Await completion with a realistic timeout (some sources take a while)
                 withTimeout(30000L) {
-                    val finalResults = deferred.await()
+                    // Lọc bỏ sách video khỏi kết quả tìm kiếm API
+                    val finalResults = deferred.await().filter { it.type and BookType.video == 0 }
                     if (translate) {
                         finalResults.forEach {
                             it.name = TranslateUtils.translateMeta(it.name)

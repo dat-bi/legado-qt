@@ -193,18 +193,28 @@ const Reader = () => {
   }, [isVideo]);
 
   const extractVideoUrl = useCallback((content: string): { type: 'bilibili' | 'youtube' | 'direct' | 'iframe'; url: string } | null => {
-    const bvMatch = content.match(/BV[\w]+/i) || content.match(/bilibili\.com\/video\/(BV[\w]+)/i);
+    const trimmed = content.trim();
+    const bvMatch = trimmed.match(/BV[\w]+/i) || trimmed.match(/bilibili\.com\/video\/(BV[\w]+)/i);
     if (bvMatch) return { type: 'bilibili', url: `https://player.bilibili.com/player.html?bvid=${bvMatch[0]}&autoplay=0` };
-    const avMatch = content.match(/aid[=:]?\s*(\d+)/i) || content.match(/av(\d+)/i);
+    const avMatch = trimmed.match(/aid[=:]?\s*(\d+)/i) || trimmed.match(/av(\d+)/i);
     if (avMatch) return { type: 'bilibili', url: `https://player.bilibili.com/player.html?aid=${avMatch[1]}&autoplay=0` };
-    const ytMatch = content.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    const ytMatch = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
     if (ytMatch) return { type: 'youtube', url: `https://www.youtube.com/embed/${ytMatch[1]}` };
-    const mp4Match = content.match(/(https?:\/\/[^\s"'<>]+\.(?:mp4|webm|m3u8))/i);
-    if (mp4Match) return { type: 'direct', url: mp4Match[1] };
-    const iframeMatch = content.match(/src=["'](https?:\/\/[^"']+)["']/i);
+
+    // Direct video link or m3u8
+    const videoRegex = /(https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|mov|avi|flv)(?:\?[^\s"'<>]*)?)/i;
+    const directMatch = trimmed.match(videoRegex);
+    if (directMatch) return { type: 'direct', url: directMatch[1] };
+
+    // If it's a video book and it starts with http, treat it as a direct link
+    if (isVideo && /^https?:\/\/[^\s"'<>]+$/i.test(trimmed)) {
+      return { type: 'direct', url: trimmed };
+    }
+
+    const iframeMatch = trimmed.match(/src=["'](https?:\/\/[^"']+)["']/i);
     if (iframeMatch) return { type: 'iframe', url: iframeMatch[1] };
     return null;
-  }, []);
+  }, [isVideo]);
 
   const renderChapterContent = useCallback((content: string) => {
     if (isVideoContent(content)) {

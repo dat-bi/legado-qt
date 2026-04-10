@@ -14,6 +14,7 @@ import io.legado.app.help.http.CookieStore
 import io.legado.app.help.http.newCallStrResponse
 import io.legado.app.help.http.okHttpClient
 import io.legado.app.help.source.SourceHelp
+import io.legado.app.help.source.checkAutoType
 import io.legado.app.help.source.clearExploreKindsCache
 import io.legado.app.help.storage.ImportOldData
 import io.legado.app.model.SharedJsScope
@@ -54,6 +55,7 @@ class BookSourceEditViewModel(application: Application) : BaseViewModel(applicat
             if (source.bookSourceUrl.isBlank() || source.bookSourceName.isBlank()) {
                 throw NoStackTraceException(context.getString(R.string.non_null_name_url))
             }
+            source.checkAutoType()
             val oldSource = bookSource ?: BookSource()
             if (!source.equal(oldSource)) {
                 source.lastUpdateTime = System.currentTimeMillis()
