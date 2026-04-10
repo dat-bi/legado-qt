@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Source+Sans+3:wght@300;400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Roboto:wght@300;400;500;700&family=Nunito:wght@400;600;700&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 96%;
+    --foreground: 25 20% 16%;
+
+    --card: 36 30% 93%;
+    --card-foreground: 25 20% 16%;
+
+    --popover: 36 33% 96%;
+    --popover-foreground: 25 20% 16%;
+
+    --primary: 25 45% 32%;
+    --primary-foreground: 36 33% 96%;
+
+    --secondary: 36 25% 88%;
+    --secondary-foreground: 25 20% 20%;
+
+    --muted: 36 20% 90%;
+    --muted-foreground: 25 10% 50%;
+
+    --accent: 30 40% 82%;
+    --accent-foreground: 25 30% 18%;
+
+    --destructive: 0 65% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 30 20% 85%;
+    --input: 30 20% 85%;
+    --ring: 25 45% 32%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 33 25% 92%;
+    --sidebar-foreground: 25 15% 30%;
+    --sidebar-primary: 25 45% 32%;
+    --sidebar-primary-foreground: 36 33% 96%;
+    --sidebar-accent: 36 25% 88%;
+    --sidebar-accent-foreground: 25 20% 20%;
+    --sidebar-border: 30 20% 85%;
+    --sidebar-ring: 25 45% 32%;
+
+    --warm-gold: 38 60% 62%;
+    --warm-amber: 30 50% 45%;
+    --paper: 40 30% 94%;
+    --paper-dark: 35 20% 88%;
+    --ink: 25 25% 18%;
+    --ink-light: 25 15% 40%;
+    --shelf-wood: 25 35% 28%;
+
+    --font-serif: 'Lora', 'Georgia', serif;
+    --font-sans: 'Source Sans 3', 'Segoe UI', sans-serif;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 36 20% 88%;
+
+    --card: 220 18% 14%;
+    --card-foreground: 36 20% 88%;
+
+    --popover: 220 18% 14%;
+    --popover-foreground: 36 20% 88%;
+
+    --primary: 38 55% 55%;
+    --primary-foreground: 220 20% 10%;
+
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 36 20% 88%;
+
+    --muted: 220 15% 18%;
+    --muted-foreground: 36 10% 55%;
+
+    --accent: 220 15% 22%;
+    --accent-foreground: 36 20% 88%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
+    --ring: 38 55% 55%;
+
+    --sidebar-background: 220 18% 12%;
+    --sidebar-foreground: 36 20% 85%;
+    --sidebar-primary: 38 55% 55%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 36 20% 85%;
+    --sidebar-border: 220 15% 20%;
+    --sidebar-ring: 38 55% 55%;
+
+    --warm-gold: 38 50% 50%;
+    --warm-amber: 30 40% 40%;
+    --paper: 220 15% 14%;
+    --paper-dark: 220 15% 12%;
+    --ink: 36 20% 85%;
+    --ink-light: 36 10% 55%;
+    --shelf-wood: 25 25% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+  }
+}
+
+@layer components {
+  .book-card-hover {
+    @apply transition-all duration-300;
+  }
+  .book-card-hover:hover {
+    transform: perspective(800px) rotateY(-2deg) translateY(-4px);
+    box-shadow: 8px 8px 20px -6px hsl(var(--shelf-wood) / 0.2);
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted-foreground) / 0.06);
+  border-radius: 10px;
+  margin: 4px 0;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.2);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  min-height: 40px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--muted-foreground) / 0.45);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.custom-scrollbar {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.2) hsl(var(--muted-foreground) / 0.06);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
