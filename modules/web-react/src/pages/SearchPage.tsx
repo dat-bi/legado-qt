@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/appStore';
 import { createSearchSocket, saveBook } from '@/api/legadoApi';
-import type { Book } from '@/data/mockBooks';
+import type { Book } from '@/data/bookTypes';
 import { defaultCover } from '@/assets/default-cover';
 import { ArrowLeft, Search, Loader2, Plus, BookOpen, Check } from 'lucide-react';
 import { toast } from 'sonner';

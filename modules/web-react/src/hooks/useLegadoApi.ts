@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAppStore } from '@/store/appStore';
 import { getBookshelf, getChapterList, getBookContent, getReadConfig } from '@/api/legadoApi';
-import { mockBooks, mockChapters, mockChapterContent } from '@/data/mockBooks';
+import type { Book, BookChapter } from '@/data/bookTypes';
 
 const useLegadoConnected = () => {
   const { legadoUrl, isConnected } = useAppStore();
@@ -14,7 +14,7 @@ export const useBookshelf = () => {
   return useQuery({
     queryKey: ['bookshelf', connected, translate],
     queryFn: async () => {
-      if (!connected) return mockBooks;
+      if (!connected) return [] as Book[];
       const data = await getBookshelf(translate);
       return Array.isArray(data) ? data : [];
     },
@@ -27,7 +27,7 @@ export const useChapterList = (bookUrl: string) => {
   const translate = useAppStore(s => s.translate);
   return useQuery({
     queryKey: ['chapters', bookUrl, connected, translate],
-    queryFn: () => (connected ? getChapterList(bookUrl, translate) : Promise.resolve(mockChapters)),
+    queryFn: () => (connected ? getChapterList(bookUrl, translate) : Promise.resolve([] as BookChapter[])),
     enabled: !!bookUrl,
     staleTime: 60_000,
   });
@@ -37,7 +37,7 @@ export const useBookContent = (bookUrl: string, index: number, translate = false
   const connected = useLegadoConnected();
   return useQuery({
     queryKey: ['content', bookUrl, index, connected, translate],
-    queryFn: () => (connected ? getBookContent(bookUrl, index, translate) : Promise.resolve(mockChapterContent)),
+    queryFn: () => (connected ? getBookContent(bookUrl, index, translate) : Promise.resolve('')),
     enabled: !!bookUrl && index >= 0,
     staleTime: 300_000,
   });

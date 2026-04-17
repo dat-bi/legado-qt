@@ -1,5 +1,5 @@
 import { useAppStore } from '@/store/appStore';
-import type { Book, BookChapter } from '@/data/mockBooks';
+import type { Book, BookChapter } from '@/data/bookTypes';
 
 const getBaseUrl = () => useAppStore.getState().legadoUrl;
 

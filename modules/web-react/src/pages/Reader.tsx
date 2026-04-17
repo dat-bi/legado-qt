@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBookshelf, useChapterList, useBookContent } from '@/hooks/useLegadoApi';
 import { useAppStore } from '@/store/appStore';
 import { saveBookProgress } from '@/api/legadoApi';
-import { BOOK_TYPES } from '@/data/mockBooks';
+import { BOOK_TYPES } from '@/data/bookTypes';
 import { Loader2, Languages } from 'lucide-react';
 import ReaderToolbar from '@/components/reader/ReaderToolbar';
 import ReaderBottomBar from '@/components/reader/ReaderBottomBar';

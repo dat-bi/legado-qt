@@ -1,7 +1,7 @@
 import { ArrowLeft, List, Settings, Languages } from 'lucide-react';
 import { Minus, Plus } from 'lucide-react';
 import { readerThemes } from '@/pages/Reader';
-import type { Book, BookChapter } from '@/data/mockBooks';
+import type { Book, BookChapter } from '@/data/bookTypes';
 import { useEffect, useRef } from 'react';
 
 const READER_FONTS = [

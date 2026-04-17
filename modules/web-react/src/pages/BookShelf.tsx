@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Book } from '@/data/mockBooks';
-import { BOOK_TYPES, getBookTypeInfo } from '@/data/mockBooks';
+import type { Book } from '@/data/bookTypes';
+import { BOOK_TYPES, getBookTypeInfo } from '@/data/bookTypes';
 import { useAppStore } from '@/store/appStore';
 import { useBookshelf } from '@/hooks/useLegadoApi';
 import {

@@ -5,7 +5,7 @@ import { useAppStore } from '@/store/appStore';
 import { ArrowLeft, BookOpen, Layers, ChevronRight, Loader2, Play, Search, Globe, Clock, BookMarked, Hash, User, Tag } from 'lucide-react';
 import TranslateToggle from '@/components/TranslateToggle';
 import DarkModeToggle from '@/components/DarkModeToggle';
-import { getBookTypeInfo, BOOK_TYPES } from '@/data/mockBooks';
+import { getBookTypeInfo, BOOK_TYPES } from '@/data/bookTypes';
 import { defaultCover } from '@/assets/default-cover';
 
 const BookDetail = () => {

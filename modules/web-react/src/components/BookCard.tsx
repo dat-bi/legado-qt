@@ -1,4 +1,4 @@
-import { type Book, getBookTypeInfo } from '@/data/mockBooks';
+import { type Book, getBookTypeInfo } from '@/data/bookTypes';
 import { defaultCover } from '@/assets/default-cover';
 import { useAppStore } from '@/store/appStore';
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Book, BookChapter } from '@/data/mockBooks';
+import type { Book, BookChapter } from '@/data/bookTypes';
 
 interface ReadingBook {
   bookUrl: string;
@@ -55,7 +55,7 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       legadoUrl: window.location.origin,
       wsAutoPort: true,
-      isConnected: false,
+      isConnected: true,
       setLegadoUrl: (url) => set({ legadoUrl: url }),
       setWsAutoPort: (auto) => set({ wsAutoPort: auto }),
       setConnected: (connected) => set({ isConnected: connected }),
