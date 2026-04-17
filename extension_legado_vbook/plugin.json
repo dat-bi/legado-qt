@@ -16,5 +16,13 @@
     "toc": "toc.js",
     "search": "search.js",
     "chap": "chap.js"
+  },
+  "config": {
+    "host": {
+      "title": "Host Legado",
+      "mode": "input",
+      "format": "text",
+      "default": "http://localhost:1122"
+    }
   }
 }
