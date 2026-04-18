@@ -14,7 +14,9 @@ function execute(url) {
             let json = response_chapter_list.json();
             let chapter_list = json.data;
             const data = [];
-            let type_book = (url.includes("&type=comic")) ? "&type=comic" : "";
+            let type_book = "";
+            if (url.includes("&type=comic")) type_book = "&type=comic";
+            else if (url.includes("&type=video")) type_book = "&type=video";
             chapter_list.forEach((e) => {
                 data.push({
                     name: e.title,

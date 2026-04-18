@@ -8,8 +8,9 @@ function execute(key, page) {
 		if (!item_list) return Response.success([]);
 		const data = [];
 		item_list.forEach((e) => {
-			let isComic = (e.type & 64) !== 0;
-			let type_book = isComic ? "&type=comic" : "";
+			let type_book = "";
+			if ((e.type & 64) !== 0) type_book = "&type=comic";
+			else if ((e.type & 4) !== 0) type_book = "&type=video";
 			let book_url = encodeURIComponent(e.bookUrl)
 			data.push({
 				name: e.name,

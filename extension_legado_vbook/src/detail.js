@@ -17,7 +17,9 @@ function execute(url) {
 				return Response.error("Sách không có trong kệ (Hãy thêm sách vào ứng dụng đọc truyện trước để xem chi tiết)");
 			}
 
-			let type_book = (url.includes("&type=comic")) ? "comic" : "chinese_novel";
+			let type_book = "chinese_novel";
+			if (url.includes("&type=comic")) type_book = "comic";
+			else if (url.includes("&type=video")) type_book = "video";
 			
 			let detailHtml = [];
 			if (book_info.author) detailHtml.push("👤 Tác giả: " + book_info.author);
