@@ -266,6 +266,12 @@ const Reader = () => {
       }
     }
 
+    let htmlContent = content;
+    if (!/<p\b/i.test(htmlContent)) {
+      htmlContent = `<p>${htmlContent.replace(/<br\s*\/?>|\n/gi, "</p><p>")}</p>`;
+      htmlContent = htmlContent.replace(/<p>[\s\uFEFF\xA0]*<\/p>/gi, "");
+    }
+
     return (
       <div
         className="leading-[1.95] text-justify tracking-wide reader-content"
@@ -274,7 +280,7 @@ const Reader = () => {
           wordSpacing: `${wordSpacing}px`,
           letterSpacing: `${wordSpacing * 0.3}px`,
         }}
-        dangerouslySetInnerHTML={{ __html: postProcessContent(content.replace(/<br\s*\/?>|\n/g, "<br>")) }}
+        dangerouslySetInnerHTML={{ __html: postProcessContent(htmlContent) }}
       />
     );
   }, [isImageContent, isVideoContent, extractVideoUrl, proxyImageUrl, fontFamily, wordSpacing]);
