@@ -273,10 +273,50 @@ const Reader = () => {
           wordSpacing: `${wordSpacing}px`,
           letterSpacing: `${wordSpacing * 0.3}px`,
         }}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: postProcessContent(content.replace(/<br\s*\/?>|\n/g, "<br>")) }}
       />
     );
   }, [isImageContent, isVideoContent, extractVideoUrl, proxyImageUrl, fontFamily, wordSpacing]);
+
+  /**
+   * Xử lý HTML từ Legado: tìm các thẻ <img> là icon bình luận (đoạn bình)
+   * có src dạng "data:image/svg+xml;base64,...,{"click":"showCmt('URL',...)"}" bị HTML-escape,
+   * rồi bọc chúng bằng <a href="commentUrl" target="_blank"> để click mở tab mới.
+   */
+  const postProcessContent = useCallback((html: string): string => {
+    return html.replace(
+      /<img\s[^>]*>/gi,
+      (imgTag) => {
+        // Decode HTML entities trong tag
+        const decoded = imgTag
+          .replace(/&quot;/g, '"')
+          .replace(/&amp;/g, '&')
+          .replace(/&#39;/g, "'");
+
+        // Chỉ xử lý nếu là comment icon (chứa showCmt hoặc pattern click)
+        if (!decoded.includes('showCmt') && !decoded.includes('"click"')) {
+          return imgTag;
+        }
+
+        // Trích xuất URL bình luận từ showCmt('URL', ...)
+        const urlMatch = decoded.match(/showCmt\s*\(\s*['"]([^'"]+)['"]/);
+        if (!urlMatch) return imgTag;
+        const commentUrl = urlMatch[1];
+
+        // Trích xuất data URI SVG, bỏ phần JSON thừa phía sau
+        const srcMatch = decoded.match(/src="([^"]+)"/);
+        if (!srcMatch) return imgTag;
+        const dataUri = srcMatch[1].replace(/\s*,\s*\{.*$/, '').trim();
+
+        return `<a href="${commentUrl}" target="_blank" rel="noopener noreferrer"` +
+          ` title="Xem bình luận"` +
+          ` style="display:inline-block;cursor:pointer;vertical-align:middle;text-decoration:none;"` +
+          ` onclick="event.stopPropagation()">` +
+          `<img src="${dataUri}" style="width:40px;height:auto;vertical-align:middle;" />` +
+          `</a>`;
+      }
+    );
+  }, []);
 
   if (!book) {
     return (

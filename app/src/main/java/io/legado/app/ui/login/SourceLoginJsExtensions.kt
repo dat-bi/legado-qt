@@ -74,6 +74,14 @@ class SourceLoginJsExtensions(
         }
     }
 
+    /**
+     * Override startBrowser: khi gọi từ script đọc truyện, appCtx.startActivity bị Android 10+ chặn
+     * (Background Activity Launch Restriction). Chuyển hướng sang showBrowser dùng Activity foreground.
+     */
+    override fun startBrowser(url: String, title: String, html: String?) {
+        showBrowser(url, html)
+    }
+
     @JvmOverloads
     fun showBrowser(url: String, html: String? = null, preloadJs: String? = null, config: String? = null) {
         val activity = activityRef.get() ?: return

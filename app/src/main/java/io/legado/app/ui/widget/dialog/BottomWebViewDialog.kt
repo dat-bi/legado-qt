@@ -52,6 +52,7 @@ import io.legado.app.help.webView.WebJsExtensions.Companion.nameSource
 import io.legado.app.help.webView.WebViewPool
 import io.legado.app.model.analyzeRule.AnalyzeUrl
 import io.legado.app.ui.association.OnLineImportActivity
+import io.legado.app.utils.TranslateUtils
 import io.legado.app.utils.invisible
 import io.legado.app.utils.keepScreenOn
 import io.legado.app.utils.longSnackbar
@@ -136,6 +137,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
     private var customWebViewCallback: WebChromeClient.CustomViewCallback? = null
     private var originOrientation: Int? = null
     private var needClearHistory = true
+    private var isTranslated = false
+    private val translateSeparator = "=|==|="
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -401,6 +404,16 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         super.onViewCreated(view, savedInstanceState)
         view.setBackgroundColor(0)
         binding.webViewContainer.addView(currentWebView)
+        // Setup FAB nút Dịch
+        binding.fabTranslate.setOnClickListener {
+            if (isTranslated) {
+                restoreOriginal()
+                binding.fabTranslate.alpha = 0.45f
+            } else {
+                translatePage()
+                binding.fabTranslate.alpha = 0.85f
+            }
+        }
         lifecycleScope.launch(IO) {
             val args = arguments
             if (args == null) {
@@ -546,6 +559,7 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
         currentWebView.addJavascriptInterface(JSInterface(this), nameBasic)
         currentWebView.webViewClient = CustomWebViewClient()
         currentWebView.settings.userAgentString = headerMap.get(AppConst.UA_NAME, true)
+        currentWebView.addJavascriptInterface(TranslateInterface(), "translateInterface")
         source?.let { source ->
             (activity as? AppCompatActivity)?.let { currentActivity ->
                 val webJsExtensions =
@@ -556,6 +570,113 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
             currentWebView.addJavascriptInterface(WebCacheManager, nameCache)
         }
         currentWebView.loadDataWithBaseURL(url, html, "text/html", "utf-8", url)
+    }
+
+    inner class TranslateInterface {
+        @android.webkit.JavascriptInterface
+        fun translateBatch(joined: String): String {
+            val parts = joined.split(translateSeparator)
+            val results = mutableListOf<String>()
+            runBlocking {
+                for (part in parts) results.add(TranslateUtils.translateCode(part))
+            }
+            return results.joinToString(translateSeparator)
+        }
+    }
+
+    private fun translatePage() {
+        if (isTranslated) return
+        val sep = translateSeparator
+        val js = """
+            (function() {
+                if (window.stvObserver) return;
+                var SEP = "${'$'}{sep}";
+                var chineseRegex = /[\u3400-\u9FBF]/;
+                var deferDelay = 400;
+                var translateDelay = 800;
+                var realtimeTranslateLock = false;
+                var deferredCheck = false;
+
+                function recurTraver(node, arr, tarr) {
+                    if (!node) return;
+                    for (var i = 0; i < node.childNodes.length; i++) {
+                        var child = node.childNodes[i];
+                        if (child.nodeType === 3) {
+                            if (chineseRegex.test(child.nodeValue)) {
+                                arr.push(child);
+                                tarr.push(child.nodeValue);
+                            }
+                        } else if (child.nodeName !== 'SCRIPT' && child.nodeName !== 'STYLE') {
+                            recurTraver(child, arr, tarr);
+                        }
+                    }
+                }
+
+                function doTranslate() {
+                    realtimeTranslateLock = true;
+                    setTimeout(function() { realtimeTranslateLock = false; }, translateDelay);
+                    var totranslist = [];
+                    var transtext = [];
+                    recurTraver(document.body, totranslist, transtext);
+                    if (totranslist.length === 0) return;
+                    var joined = transtext.join(SEP);
+                    var result = window.translateInterface.translateBatch(joined);
+                    if (!result) return;
+                    var translateds = result.split(SEP);
+                    for (var i = 0; i < totranslist.length; i++) {
+                        if (translateds[i]) {
+                            if (!totranslist[i].orgn) totranslist[i].orgn = totranslist[i].nodeValue;
+                            totranslist[i].nodeValue = translateds[i];
+                        }
+                    }
+                }
+
+                function scheduleTranslate() {
+                    if (realtimeTranslateLock) { deferredCheck = true; return; }
+                    doTranslate();
+                    if (deferredCheck) { deferredCheck = false; setTimeout(scheduleTranslate, deferDelay); }
+                }
+
+                scheduleTranslate();
+
+                window.stvObserver = new MutationObserver(function(mutations) {
+                    var needsTranslation = false;
+                    for (var i = 0; i < mutations.length; i++) {
+                        if (mutations[i].addedNodes.length > 0) { needsTranslation = true; break; }
+                    }
+                    if (needsTranslation) {
+                        if (realtimeTranslateLock) { deferredCheck = true; return; }
+                        realtimeTranslateLock = true;
+                        setTimeout(function() {
+                            realtimeTranslateLock = false;
+                            if (deferredCheck) { deferredCheck = false; doTranslate(); }
+                        }, deferDelay);
+                        doTranslate();
+                    }
+                });
+                window.stvObserver.observe(document.body, { childList: true, subtree: true });
+            })();
+        """.trimIndent()
+        currentWebView.evaluateJavascript(js, null)
+        isTranslated = true
+    }
+
+    private fun restoreOriginal() {
+        if (!isTranslated) return
+        val js = """
+            (function() {
+                if (window.stvObserver) { window.stvObserver.disconnect(); window.stvObserver = null; }
+                var all = document.querySelectorAll('*');
+                for (var i = 0; i < all.length; i++) {
+                    for (var j = 0; j < all[i].childNodes.length; j++) {
+                        var n = all[i].childNodes[j];
+                        if (n.nodeType === 3 && n.orgn) { n.nodeValue = n.orgn; delete n.orgn; }
+                    }
+                }
+            })();
+        """.trimIndent()
+        currentWebView.evaluateJavascript(js, null)
+        isTranslated = false
     }
 
     private fun saveImage(webPic: String) {
@@ -780,6 +901,8 @@ class BottomWebViewDialog() : BottomSheetDialogFragment(R.layout.dialog_web_view
                 currentWebView.clearHistory() //清除历史
             }
             super.onPageStarted(view, url, favicon)
+            isTranslated = false
+            activity?.runOnUiThread { binding.fabTranslate.alpha = 0.45f }
             currentWebView.evaluateJavascript(basicJs, null)
         }
 
