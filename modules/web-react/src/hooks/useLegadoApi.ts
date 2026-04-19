@@ -37,7 +37,7 @@ export const useBookContent = (bookUrl: string, index: number, translate = false
   const connected = useLegadoConnected();
   return useQuery({
     queryKey: ['content', bookUrl, index, connected, translate],
-    queryFn: () => (connected ? getBookContent(bookUrl, index, translate) : Promise.resolve('')),
+    queryFn: () => (connected ? getBookContent(bookUrl, index, translate) : Promise.resolve({ content: '', headers: {} })),
     enabled: !!bookUrl && index >= 0,
     staleTime: 300_000,
   });

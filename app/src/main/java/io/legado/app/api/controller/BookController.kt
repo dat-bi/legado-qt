@@ -243,6 +243,17 @@ object BookController {
         if (book == null || chapter == null) {
             return returnData.setErrorMsg(appCtx.getString(R.string.not_found))
         }
+
+        val bookSource = appDb.bookSourceDao.getBookSource(book.origin)
+        if (bookSource != null) {
+            val headers = bookSource.getHeaderMap(true).toMutableMap()
+            val cookie = io.legado.app.help.http.CookieStore.getCookie(bookSource.bookSourceUrl)
+            if (cookie.isNotEmpty()) {
+                headers["Cookie"] = cookie
+            }
+            returnData.setHeaders(headers)
+        }
+
         var content: String? = BookHelp.getContent(book, chapter)
         if (content != null) {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
@@ -252,8 +263,11 @@ object BookController {
             }
             return returnData.setData(content)
         }
-        val bookSource = appDb.bookSourceDao.getBookSource(book.origin)
-            ?: return returnData.setErrorMsg(appCtx.getString(R.string.source_not_found))
+
+        if (bookSource == null) {
+            return returnData.setErrorMsg(appCtx.getString(R.string.source_not_found))
+        }
+
         try {
             content = runBlocking {
                 WebBook.getContentAwait(bookSource, book, chapter).let {

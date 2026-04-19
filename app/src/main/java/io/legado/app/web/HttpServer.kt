@@ -75,6 +75,17 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                 Method.GET -> {
                     val parameters = session.parameters
 
+                    if (uri == "/proxyStream") {
+                        val response = serveProxyStream(session)
+                        response.addHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                        response.addHeader("Access-Control-Allow-Headers", "Range, content-type")
+                        response.addHeader("Access-Control-Allow-Origin", session.headers["origin"] ?: "*")
+                        LogUtils.d(TAG) {
+                            "${session.method.name} - $uri - ${session.queryParameterString} - End($startAt)"
+                        }
+                        return response
+                    }
+
                     returnData = when (uri) {
                         "/getBookSource" -> BookSourceController.getSource(parameters)
                         "/getBookSources" -> BookSourceController.sources
@@ -148,6 +159,55 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
             return newFixedLengthResponse(e.message)
         }
 
+    }
+
+    private fun serveProxyStream(session: IHTTPSession): Response {
+        val url = session.parameters["url"]?.firstOrNull()
+            ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing url parameter")
+
+        val bookUrl = session.parameters["bookUrl"]?.firstOrNull()
+        val headers = mutableMapOf<String, String>()
+
+        if (bookUrl != null) {
+            val book = io.legado.app.data.appDb.bookDao.getBook(bookUrl)
+            if (book != null) {
+                val bookSource = io.legado.app.data.appDb.bookSourceDao.getBookSource(book.origin)
+                if (bookSource != null) {
+                    headers.putAll(bookSource.getHeaderMap(true))
+                    val cookie = io.legado.app.help.http.CookieStore.getCookie(bookSource.bookSourceUrl)
+                    if (cookie.isNotEmpty()) {
+                        headers["Cookie"] = cookie
+                    }
+                }
+            }
+        }
+
+        val requestBuilder = okhttp3.Request.Builder().url(url)
+        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
+
+        session.headers["range"]?.let {
+            requestBuilder.header("Range", it)
+        }
+
+        val response = io.legado.app.help.http.okHttpClient.newCall(requestBuilder.build()).execute()
+        val body = response.body
+        val inputStream = body?.byteStream()
+            ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Stream not found")
+
+        val status = if (response.code == 206) Response.Status.PARTIAL_CONTENT else Response.Status.OK
+        val contentType = response.header("Content-Type") ?: "video/mp4"
+        val contentLengthStr = response.header("Content-Length")
+
+        val res = if (contentLengthStr != null) {
+            newFixedLengthResponse(status, contentType, inputStream, contentLengthStr.toLong())
+        } else {
+            newChunkedResponse(status, contentType, inputStream)
+        }
+
+        response.header("Content-Range")?.let { res.addHeader("Content-Range", it) }
+        response.header("Accept-Ranges")?.let { res.addHeader("Accept-Ranges", it) }
+
+        return res
     }
 
     companion object {

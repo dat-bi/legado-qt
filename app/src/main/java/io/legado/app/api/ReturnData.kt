@@ -14,6 +14,9 @@ class ReturnData {
     var data: Any? = null
         private set
 
+    var headers: Map<String, String>? = null
+        private set
+
     fun setErrorMsg(errorMsg: String): ReturnData {
         this.isSuccess = false
         this.errorMsg = errorMsg
@@ -24,6 +27,11 @@ class ReturnData {
         this.isSuccess = true
         this.errorMsg = ""
         this.data = data
+        return this
+    }
+
+    fun setHeaders(headers: Map<String, String>?): ReturnData {
+        this.headers = headers
         return this
     }
 }

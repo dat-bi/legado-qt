@@ -38,9 +38,15 @@ export const getChapterList = async (bookUrl: string, translate = false): Promis
 };
 
 // ─── Chapter content ───
-export const getBookContent = async (bookUrl: string, index: number, translate = false): Promise<string> => {
-  const res = await apiFetch<{ data: string } | string>(`/getBookContent?url=${encodeURIComponent(bookUrl)}&index=${index}&translate=${translate}`);
-  return typeof res === 'string' ? res : (res as any).data ?? '';
+export const getBookContent = async (bookUrl: string, index: number, translate = false): Promise<{ content: string, headers: Record<string, string> }> => {
+  const res = await apiFetch<{ data: string, headers?: Record<string, string> } | string>(`/getBookContent?url=${encodeURIComponent(bookUrl)}&index=${index}&translate=${translate}`);
+  if (typeof res === 'string') {
+    return { content: res, headers: {} };
+  }
+  return {
+    content: res.data ?? '',
+    headers: res.headers ?? {}
+  };
 };
 
 // ─── Save progress (sendBeacon on unload) ───
@@ -124,4 +130,11 @@ export const testConnection = async (url: string): Promise<boolean> => {
   } catch {
     return false;
   }
+};
+
+// ─── Proxy Media Stream ───
+export const getProxyStreamUrl = (url: string, bookUrl: string): string => {
+  const base = getBaseUrl();
+  if (!base) return url;
+  return `${base}/proxyStream?url=${encodeURIComponent(url)}&bookUrl=${encodeURIComponent(bookUrl)}`;
 };

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBookshelf, useChapterList, useBookContent } from '@/hooks/useLegadoApi';
 import { useAppStore } from '@/store/appStore';
-import { saveBookProgress } from '@/api/legadoApi';
+import { saveBookProgress, getProxyStreamUrl } from '@/api/legadoApi';
 import { BOOK_TYPES } from '@/data/bookTypes';
 import { Loader2, Languages } from 'lucide-react';
 import ReaderToolbar from '@/components/reader/ReaderToolbar';
@@ -21,6 +21,7 @@ interface LoadedChapter {
   index: number;
   title: string;
   content: string;
+  headers?: Record<string, string>;
 }
 
 const Reader = () => {
@@ -59,18 +60,18 @@ const Reader = () => {
   const [initialLoaded, setInitialLoaded] = useState(false);
   const chapterRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  const { data: initialContent, isLoading: contentLoading } = useBookContent(decodedUrl, startChapterIndex, translate);
+  const { data: initialContentData, isLoading: contentLoading } = useBookContent(decodedUrl, startChapterIndex, translate);
 
   useEffect(() => {
-    if (initialContent && chapters.length > 0 && !initialLoaded) {
+    if (initialContentData && chapters.length > 0 && !initialLoaded) {
       const ch = chapters[startChapterIndex];
       if (ch) {
-        setLoadedChapters([{ index: startChapterIndex, title: ch.title, content: initialContent }]);
+        setLoadedChapters([{ index: startChapterIndex, title: ch.title, content: initialContentData.content, headers: initialContentData.headers }]);
         setInitialLoaded(true);
         setCurrentVisibleChapter(startChapterIndex);
       }
     }
-  }, [initialContent, chapters, startChapterIndex, initialLoaded]);
+  }, [initialContentData, chapters, startChapterIndex, initialLoaded]);
 
   useEffect(() => {
     setInitialLoaded(false);
@@ -88,12 +89,12 @@ const Reader = () => {
     setLoadingMore(true);
     try {
       const { getBookContent } = await import('@/api/legadoApi');
-      const content = await getBookContent(decodedUrl, nextIndex, translate);
+      const data = await getBookContent(decodedUrl, nextIndex, translate);
       const ch = chapters[nextIndex];
       if (ch) {
         setLoadedChapters(prev => {
           if (prev.some(c => c.index === nextIndex)) return prev;
-          return [...prev, { index: nextIndex, title: ch.title, content }];
+          return [...prev, { index: nextIndex, title: ch.title, content: data.content, headers: data.headers }];
         });
       }
     } catch (e) {
@@ -223,7 +224,7 @@ const Reader = () => {
         if (videoInfo.type === 'direct') {
           return (
             <div className="flex flex-col items-center">
-              <video src={videoInfo.url} controls className="w-full max-w-3xl rounded-xl shadow-lg" style={{ maxHeight: '80vh' }} />
+              <video src={getProxyStreamUrl(videoInfo.url, decodedUrl)} controls className="w-full max-w-3xl rounded-xl shadow-lg" style={{ maxHeight: '80vh' }} />
             </div>
           );
         }
