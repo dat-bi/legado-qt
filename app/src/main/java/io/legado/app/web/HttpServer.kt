@@ -103,6 +103,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
                         "/getRssSources" -> RssSourceController.sources
                         "/getReplaceRules" -> ReplaceRuleController.allRules
                         "/searchBook" -> BookController.search(parameters)
+                        "/proxyCheck" -> checkProxy(parameters)
                         else -> null
                     }
                 }
@@ -178,6 +179,68 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
             .build()
     }
 
+    /**
+     * Kiểm tra khả năng truy cập CDN URL với các headers cho trước.
+     * Dùng Range: bytes=0-1 để chỉ lấy header, không tải toàn bộ.
+     * Trả về JSON: { code, ok, contentType, acceptRanges, bodySnippet }
+     */
+    private fun checkProxy(parameters: Map<String, List<String>>): ReturnData {
+        val returnData = ReturnData()
+        val url = parameters["url"]?.firstOrNull()
+            ?: return returnData.setErrorMsg("Missing url param")
+
+        val headers = mutableMapOf<String, String>()
+        parameters.forEach { (key, values) ->
+            if (key.startsWith("h_")) {
+                val name = key.removePrefix("h_")
+                val value = values.firstOrNull()
+                if (name.isNotBlank() && !value.isNullOrBlank()) {
+                    headers[name] = value
+                }
+            }
+        }
+
+        LogUtils.d(TAG) { "proxyCheck url=${url.take(80)} headers=${headers.keys}" }
+
+        return try {
+            val reqBuilder = okhttp3.Request.Builder().url(url)
+            
+            var hasUserAgent = false
+            headers.forEach { (k, v) -> 
+                reqBuilder.header(k, v) 
+                if (k.equals("User-Agent", ignoreCase = true)) hasUserAgent = true
+            }
+
+            if (!hasUserAgent) {
+                reqBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            }
+
+            reqBuilder.header("Range", "bytes=0-1")
+
+            val resp = streamHttpClient.newCall(reqBuilder.build()).execute()
+            val code = resp.code
+            val contentType = resp.header("Content-Type") ?: ""
+            val acceptRanges = resp.header("Accept-Ranges") ?: ""
+            val bodySnippet = if (code !in 200..299) resp.body?.string()?.take(300) ?: "" else ""
+            resp.body?.close()
+
+            LogUtils.d(TAG) { "proxyCheck ← HTTP $code | CT=$contentType | AR=$acceptRanges ${if (bodySnippet.isNotEmpty()) "| BODY=${bodySnippet.take(100)}" else ""}" }
+
+            returnData.setData(
+                mapOf(
+                    "code" to code,
+                    "ok" to (code in 200..299),
+                    "contentType" to contentType,
+                    "acceptRanges" to acceptRanges,
+                    "body" to bodySnippet
+                )
+            )
+        } catch (e: Exception) {
+            LogUtils.d(TAG) { "proxyCheck ✗ ${e.javaClass.simpleName}: ${e.message}" }
+            returnData.setErrorMsg("${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
     private fun serveProxyStream(session: IHTTPSession): Response {
         val url = session.parameters["url"]?.firstOrNull()
             ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing url parameter")
@@ -213,20 +276,61 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
         }
 
         val requestBuilder = okhttp3.Request.Builder().url(url)
-        headers.forEach { (k, v) -> requestBuilder.header(k, v) }
+        
+        var hasUserAgent = false
+        headers.forEach { (k, v) -> 
+            requestBuilder.header(k, v) 
+            if (k.equals("User-Agent", ignoreCase = true)) hasUserAgent = true
+        }
+
+        if (!hasUserAgent) {
+            requestBuilder.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        }
 
         session.headers["range"]?.let {
             requestBuilder.header("Range", it)
         }
 
-        val response = streamHttpClient.newCall(requestBuilder.build()).execute()
-        val body = response.body
-        val inputStream = body?.byteStream()
+        LogUtils.d(TAG) { "proxyStream → requesting: ${url.take(80)}... headers=${headers.keys}" }
+
+        val cdnResponse = try {
+            streamHttpClient.newCall(requestBuilder.build()).execute()
+        } catch (e: Exception) {
+            LogUtils.d(TAG) { "proxyStream ✗ OkHttp exception: ${e.javaClass.simpleName}: ${e.message}" }
+            return newFixedLengthResponse(
+                Response.Status.INTERNAL_ERROR,
+                "text/plain",
+                "Proxy OkHttp error: ${e.javaClass.simpleName}: ${e.message}"
+            )
+        }
+
+        val cdnCode = cdnResponse.code
+        LogUtils.d(TAG) { "proxyStream ← CDN responded: HTTP $cdnCode" }
+
+        // Relay CDN error status codes
+        if (cdnCode !in 200..299) {
+            val errBody = cdnResponse.body?.string() ?: "(empty)"
+            LogUtils.d(TAG) { "proxyStream ✗ CDN error body: ${errBody.take(200)}" }
+            val nanoStatus = when (cdnCode) {
+                400 -> Response.Status.BAD_REQUEST
+                401 -> Response.Status.UNAUTHORIZED
+                403 -> Response.Status.FORBIDDEN
+                404 -> Response.Status.NOT_FOUND
+                else -> Response.Status.INTERNAL_ERROR
+            }
+            return newFixedLengthResponse(
+                nanoStatus,
+                "text/plain",
+                "CDN returned HTTP $cdnCode: ${errBody.take(500)}"
+            )
+        }
+
+        val inputStream = cdnResponse.body?.byteStream()
             ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Stream not found")
 
-        val status = if (response.code == 206) Response.Status.PARTIAL_CONTENT else Response.Status.OK
-        val contentType = response.header("Content-Type") ?: "video/mp4"
-        val contentLengthStr = response.header("Content-Length")
+        val status = if (cdnCode == 206) Response.Status.PARTIAL_CONTENT else Response.Status.OK
+        val contentType = cdnResponse.header("Content-Type") ?: "video/mp4"
+        val contentLengthStr = cdnResponse.header("Content-Length")
 
         val res = if (contentLengthStr != null) {
             newFixedLengthResponse(status, contentType, inputStream, contentLengthStr.toLong())
@@ -234,8 +338,9 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
             newChunkedResponse(status, contentType, inputStream)
         }
 
-        response.header("Content-Range")?.let { res.addHeader("Content-Range", it) }
-        response.header("Accept-Ranges")?.let { res.addHeader("Accept-Ranges", it) }
+        cdnResponse.header("Content-Range")?.let { res.addHeader("Content-Range", it) }
+        // Luôn báo browser biết range request được hỗ trợ (cần cho seek)
+        res.addHeader("Accept-Ranges", cdnResponse.header("Accept-Ranges") ?: "bytes")
 
         return res
     }

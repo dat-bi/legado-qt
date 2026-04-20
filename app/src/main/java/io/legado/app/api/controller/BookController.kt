@@ -254,7 +254,9 @@ object BookController {
             returnData.setHeaders(headers)
         }
 
-        var content: String? = BookHelp.getContent(book, chapter)
+        val refresh = parameters["refresh"]?.firstOrNull()?.toBoolean() ?: false
+
+        var content: String? = if (!refresh) BookHelp.getContent(book, chapter) else null
         if (content != null) {
             val contentProcessor = ContentProcessor.get(book.name, book.origin)
             content = runBlocking {

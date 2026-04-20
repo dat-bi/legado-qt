@@ -38,8 +38,8 @@ export const getChapterList = async (bookUrl: string, translate = false): Promis
 };
 
 // ─── Chapter content ───
-export const getBookContent = async (bookUrl: string, index: number, translate = false): Promise<{ content: string, headers: Record<string, string> }> => {
-  const res = await apiFetch<{ data: string, headers?: Record<string, string> } | string>(`/getBookContent?url=${encodeURIComponent(bookUrl)}&index=${index}&translate=${translate}`);
+export const getBookContent = async (bookUrl: string, index: number, translate = false, refresh = false): Promise<{ content: string, headers: Record<string, string> }> => {
+  const res = await apiFetch<{ data: string, headers?: Record<string, string> } | string>(`/getBookContent?url=${encodeURIComponent(bookUrl)}&index=${index}&translate=${translate}&refresh=${refresh}`);
   if (typeof res === 'string') {
     return { content: res, headers: {} };
   }
@@ -142,7 +142,6 @@ export const getProxyStreamUrl = (
   if (!base) return url;
   let proxyUrl = `${base}/proxyStream?url=${encodeURIComponent(url)}&bookUrl=${encodeURIComponent(bookUrl)}`;
   if (headers) {
-    // Lọc bỏ các header rỗng trước khi truyền
     Object.entries(headers).forEach(([k, v]) => {
       if (v && v.trim()) {
         proxyUrl += `&h_${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
@@ -150,4 +149,38 @@ export const getProxyStreamUrl = (
     });
   }
   return proxyUrl;
+};
+
+export interface ProxyCheckResult {
+  ok: boolean;
+  code: number;
+  contentType: string;
+  acceptRanges: string;
+  body: string;
+  error?: string;
+}
+
+/** Kiểm tra CDN URL có accessible không (Range:bytes=0-1) – không tải toàn bộ */
+export const checkProxyUrl = async (
+  videoUrl: string,
+  headers?: Record<string, string>
+): Promise<ProxyCheckResult> => {
+  const base = getBaseUrl();
+  if (!base) return { ok: false, code: 0, contentType: '', acceptRanges: '', body: '', error: 'No base URL' };
+
+  let checkUrl = `${base}/proxyCheck?url=${encodeURIComponent(videoUrl)}`;
+  if (headers) {
+    Object.entries(headers).forEach(([k, v]) => {
+      if (v && v.trim()) checkUrl += `&h_${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
+    });
+  }
+
+  try {
+    const res = await fetch(checkUrl, { signal: AbortSignal.timeout(8000) });
+    const json = await res.json();
+    if (json.isSuccess && json.data) return json.data as ProxyCheckResult;
+    return { ok: false, code: 0, contentType: '', acceptRanges: '', body: '', error: json.errorMsg || 'Unknown' };
+  } catch (e: any) {
+    return { ok: false, code: 0, contentType: '', acceptRanges: '', body: '', error: e.message };
+  }
 };

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBookshelf, useChapterList, useBookContent } from '@/hooks/useLegadoApi';
 import { useAppStore } from '@/store/appStore';
-import { saveBookProgress, getProxyStreamUrl } from '@/api/legadoApi';
+import { saveBookProgress, getProxyStreamUrl, checkProxyUrl, type ProxyCheckResult } from '@/api/legadoApi';
 import { BOOK_TYPES } from '@/data/bookTypes';
 import { Loader2, Languages } from 'lucide-react';
 import ReaderToolbar from '@/components/reader/ReaderToolbar';
@@ -16,6 +16,143 @@ const readerThemes = [
 ];
 
 export { readerThemes };
+
+// ─── VideoPlayer thông minh: tự kiểm tra proxy trước khi phát ───
+interface VideoPlayerProps {
+  proxyUrl: string;
+  directUrl: string;
+  headers?: Record<string, string>;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+}
+
+const ERR_CODES: Record<number, string> = { 1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'NOT_SUPPORTED' };
+
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ proxyUrl, directUrl, headers, onRefresh, isRefreshing }) => {
+  const [src, setSrc] = useState<string>('');
+  const [status, setStatus] = useState<'checking' | 'proxy_ok' | 'proxy_fail' | 'direct_fail'>('checking');
+  const [checkResult, setCheckResult] = useState<ProxyCheckResult | null>(null);
+  const [mediaError, setMediaError] = useState<string>('');
+
+  useEffect(() => {
+    let active = true;
+    setStatus('checking');
+    setCheckResult(null);
+    setMediaError('');
+    setSrc('');
+
+    checkProxyUrl(directUrl, headers).then(result => {
+      if (!active) return;
+      setCheckResult(result);
+      console.log(
+        `[VideoPlayer] /proxyCheck → HTTP ${result.code} ${result.ok ? '✓' : '✗'}` +
+        ` | code=${result.code} | CT=${result.contentType} | AR=${result.acceptRanges}` +
+        (result.error ? ` | error=${result.error}` : '') +
+        (result.body ? ` | body=${result.body.substring(0, 150)}` : '')
+      );
+
+      if (result.ok) {
+        // CDN trả 2xx → proxy hoạt động được
+        console.log('[VideoPlayer] Proxy check OK → using proxy stream URL');
+        setStatus('proxy_ok');
+        setSrc(proxyUrl);
+      } else if (result.code === 403) {
+        // CDN chặn ngay cả proxy → thử direct URL (có thể browser không cần Referer)
+        console.warn(`[VideoPlayer] CDN 403 – trying direct URL`);
+        setStatus('proxy_fail');
+        setSrc(directUrl);
+      } else {
+        // Lỗi khác (network, SSL, timeout...)
+        console.error(`[VideoPlayer] Proxy fail code=${result.code} err=${result.error}`);
+        setStatus('proxy_fail');
+        setSrc(directUrl);
+      }
+    });
+    return () => { active = false; };
+  }, [proxyUrl, directUrl]);
+
+  const handleError = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = e.currentTarget;
+    const err = video.error;
+    const detail = err ? `MediaError ${err.code}(${ERR_CODES[err.code] ?? '?'}): ${err.message}` : 'unknown';
+
+    if (video.src === proxyUrl) {
+      const msg = `Proxy stream lỗi: ${detail}`;
+      console.error('[VideoPlayer]', msg);
+      setMediaError(msg);
+      setSrc(directUrl);
+      setStatus('proxy_fail');
+    } else {
+      const msg = `Direct URL lỗi: ${detail}. CDN yêu cầu Referer xác thực.`;
+      console.error('[VideoPlayer]', msg);
+      setMediaError(msg);
+      setStatus('direct_fail');
+    }
+  };
+
+  const statusBadge = {
+    checking: { text: 'Đang kiểm tra proxy...', color: 'text-yellow-400' },
+    proxy_ok: { text: 'Proxy OK', color: 'text-green-400' },
+    proxy_fail: { text: checkResult ? `Proxy HTTP ${checkResult.code} – thử direct URL` : 'Proxy lỗi', color: 'text-orange-400' },
+    direct_fail: { text: 'Không phát được video', color: 'text-red-400' },
+  }[status];
+
+  return (
+    <div className="flex flex-col items-center gap-2 w-full">
+      {/* Status badge */}
+      <div className={`text-xs flex items-center gap-2 opacity-70 ${statusBadge.color}`}>
+        {statusBadge.text}
+        {checkResult && !checkResult.ok && checkResult.error && (
+          <span className="opacity-60">({checkResult.error})</span>
+        )}
+      </div>
+
+      {/* Nút Refresh nếu gặp lỗi từ CDN Akamai */}
+      {(status === 'proxy_fail' || status === 'direct_fail') && onRefresh && (
+        <button
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="mt-1 mb-2 text-xs px-3 py-1.5 bg-blue-500/20 text-blue-400 rounded-lg outline-none hover:bg-blue-500/30 flex items-center gap-2 whitespace-nowrap"
+        >
+          {isRefreshing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '↻ Làm mới phiên (Lấy Link & Token mới)'}
+        </button>
+      )}
+
+      {/* Video player */}
+      {src ? (
+        <video
+          key={src}
+          src={src}
+          controls
+          className="w-full max-w-3xl rounded-xl shadow-lg"
+          style={{ maxHeight: '80vh' }}
+          onError={handleError}
+        />
+      ) : (
+        <div className="w-full max-w-3xl rounded-xl bg-black/20 flex items-center justify-center" style={{ minHeight: 200 }}>
+          <Loader2 className="w-6 h-6 animate-spin opacity-40" />
+        </div>
+      )}
+
+      {/* Media error detail */}
+      {mediaError && (
+        <p className="text-xs text-red-400 max-w-xl text-center opacity-80 px-4">⚠ {mediaError}</p>
+      )}
+
+      {/* Direct URL link */}
+      {(status === 'proxy_fail' || status === 'direct_fail') && (
+        <a
+          href={directUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs underline opacity-50 hover:opacity-80"
+        >
+          Mở video trực tiếp ↗
+        </a>
+      )}
+    </div>
+  );
+};
 
 interface LoadedChapter {
   index: number;
@@ -62,10 +199,13 @@ const Reader = () => {
 
   const { data: initialContentData, isLoading: contentLoading } = useBookContent(decodedUrl, startChapterIndex, translate);
 
+  const [refreshingChapters, setRefreshingChapters] = useState<Set<number>>(new Set());
+
   useEffect(() => {
     if (initialContentData && chapters.length > 0 && !initialLoaded) {
       const ch = chapters[startChapterIndex];
-      if (ch) {
+      // initialContentData is checked when mounting
+      if (ch && initialContentData.content) {
         setLoadedChapters([{ index: startChapterIndex, title: ch.title, content: initialContentData.content, headers: initialContentData.headers }]);
         setInitialLoaded(true);
         setCurrentVisibleChapter(startChapterIndex);
@@ -89,7 +229,7 @@ const Reader = () => {
     setLoadingMore(true);
     try {
       const { getBookContent } = await import('@/api/legadoApi');
-      const data = await getBookContent(decodedUrl, nextIndex, translate);
+      const data = await getBookContent(decodedUrl, nextIndex, translate, false);
       const ch = chapters[nextIndex];
       if (ch) {
         setLoadedChapters(prev => {
@@ -103,6 +243,28 @@ const Reader = () => {
       setLoadingMore(false);
     }
   }, [loadingMore, loadedChapters, chapters, decodedUrl, translate]);
+
+  const refreshChapter = useCallback(async (chapterIndex: number) => {
+    setRefreshingChapters(s => new Set(s).add(chapterIndex));
+    try {
+      const { getBookContent } = await import('@/api/legadoApi');
+      // Pass refresh=true to bypass Legado API cache
+      const data = await getBookContent(decodedUrl, chapterIndex, translate, true);
+      setLoadedChapters(prev => prev.map(ch => 
+        ch.index === chapterIndex 
+          ? { ...ch, content: data.content, headers: data.headers } 
+          : ch
+      ));
+    } catch (e) {
+      console.error('Failed to refresh chapter:', e);
+    } finally {
+      setRefreshingChapters(s => {
+        const next = new Set(s);
+        next.delete(chapterIndex);
+        return next;
+      });
+    }
+  }, [decodedUrl, translate]);
 
   useEffect(() => {
     const sentinel = bottomSentinelRef.current;
@@ -234,14 +396,20 @@ const Reader = () => {
     return null;
   }, [isVideo]);
 
-  const renderChapterContent = useCallback((content: string, chapterHeaders?: Record<string, string>) => {
+  const renderChapterContent = useCallback((content: string, chapterHeaders: Record<string, string> | undefined, chapterIndex: number) => {
     if (isVideoContent(content)) {
       const videoInfo = extractVideoUrl(content);
       if (videoInfo) {
         if (videoInfo.type === 'direct') {
           return (
             <div className="flex flex-col items-center">
-              <video src={getProxyStreamUrl(videoInfo.url, decodedUrl, chapterHeaders)} controls className="w-full max-w-3xl rounded-xl shadow-lg" style={{ maxHeight: '80vh' }} />
+              <VideoPlayer
+                proxyUrl={getProxyStreamUrl(videoInfo.url, decodedUrl, chapterHeaders)}
+                directUrl={videoInfo.url}
+                headers={chapterHeaders}
+                isRefreshing={refreshingChapters.has(chapterIndex)}
+                onRefresh={() => refreshChapter(chapterIndex)}
+              />
             </div>
           );
         }
@@ -300,7 +468,7 @@ const Reader = () => {
         dangerouslySetInnerHTML={{ __html: postProcessContent(htmlContent) }}
       />
     );
-  }, [isImageContent, isVideoContent, extractVideoUrl, proxyImageUrl, fontFamily, wordSpacing]);
+  }, [isImageContent, isVideoContent, extractVideoUrl, proxyImageUrl, fontFamily, wordSpacing, refreshingChapters, refreshChapter, decodedUrl]);
 
   /**
    * Xử lý HTML từ Legado: tìm các thẻ <img> là icon bình luận (đoạn bình)
@@ -411,7 +579,7 @@ const Reader = () => {
                   {lc.title}
                 </h2>
 
-                {renderChapterContent(lc.content, lc.headers)}
+                {renderChapterContent(lc.content, lc.headers, lc.index)}
               </div>
             ))}
 
