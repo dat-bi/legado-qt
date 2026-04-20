@@ -14,19 +14,22 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Nút Dịch: nhỏ, mờ, góc phải dưới -->
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <!-- Nút Dịch: nhỏ, mờ, góc phải trên -->
+    <ImageView
         android:id="@+id/fab_translate"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="80dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginBottom="16dp"
         android:alpha="0.45"
-        android:contentDescription="Dịch"
-        app:fabSize="mini"
+        android:contentDescription="-"
         app:srcCompat="@drawable/ic_translate"
-        app:backgroundTint="?attr/colorSurface"
-        app:tint="?attr/colorOnSurface"
-        app:elevation="4dp" />
+        android:background="?selectableItemBackgroundBorderless"
+        android:padding="12dp"
+        app:tint="@color/primaryText"
+        android:elevation="4dp" />
 
 </FrameLayout>

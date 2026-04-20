@@ -82,6 +82,14 @@ class SourceLoginJsExtensions(
         showBrowser(url, html)
     }
 
+    /**
+     * Overload 4 tham số: java.startBrowser(url, title, html, config)
+     * Được gọi từ script khi muốn truyền thêm config cho BottomWebViewDialog.
+     */
+    fun startBrowser(url: String, title: String, html: String?, config: String?) {
+        showBrowser(url, html, null, config)
+    }
+
     @JvmOverloads
     fun showBrowser(url: String, html: String? = null, preloadJs: String? = null, config: String? = null) {
         val activity = activityRef.get() ?: return

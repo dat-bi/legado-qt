@@ -1346,12 +1346,16 @@ class ReadBookActivity : BaseReadBookActivity(),
      * 点击图片
      */
     override fun oldClickImg(src: String): Boolean {
+        AppLog.putDebug("[showCmt] oldClickImg called: src=${src.take(120)}")
         val urlMatcher = paramPattern.matcher(src)
         if (urlMatcher.find()) {
             val urlOptionStr = src.substring(urlMatcher.end())
+            AppLog.putDebug("[showCmt] urlOptionStr=${urlOptionStr.take(200)}")
             val urlOptionMap = GSON.fromJsonObject<Map<String, String>>(urlOptionStr).getOrNull()
+            AppLog.putDebug("[showCmt] urlOptionMap keys=${urlOptionMap?.keys}")
             val click = urlOptionMap?.get("click")
             if (click != null) {
+                AppLog.putDebug("[showCmt] Taking 'click' branch")
                 Coroutine.async(lifecycleScope,IO) {
                     val source = ReadBook.bookSource ?: return@async
                     val java = SourceLoginJsExtensions(this@ReadBookActivity, source, BookType.text)
@@ -1370,13 +1374,20 @@ class ReadBookActivity : BaseReadBookActivity(),
                 }
                 return true
             }
-            val jsStr = urlOptionMap?.get("js") ?: return false
+            val jsStr = urlOptionMap?.get("js")
+            AppLog.putDebug("[showCmt] jsStr=${jsStr?.take(80)}")
+            if (jsStr == null) {
+                AppLog.putDebug("[showCmt] No 'js' key found — returning false")
+                return false
+            }
             Coroutine.async(lifecycleScope, IO) {
                 val source = ReadBook.bookSource ?: return@async
+                AppLog.putDebug("[showCmt] Taking 'js' branch, source=${source.bookSourceUrl}")
                 val book = ReadBook.book ?: return@async
                 val chapter = appDb.bookChapterDao.getChapter(book.bookUrl, ReadBook.durChapterIndex) ?: throw Exception("no find chapter")
                 val urlNoOption = src.take(urlMatcher.start())
                 AnalyzeRule(book, source).apply {
+                    setActivity(this@ReadBookActivity)
                     setCoroutineContext(coroutineContext)
                     setBaseUrl(chapter.url)
                     setChapter(chapter)
@@ -1387,6 +1398,7 @@ class ReadBookActivity : BaseReadBookActivity(),
             }
             return true
         }
+        AppLog.putDebug("[showCmt] paramPattern not found in src — returning false")
         return false
     }
 

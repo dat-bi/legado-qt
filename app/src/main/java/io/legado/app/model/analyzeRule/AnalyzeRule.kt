@@ -3,6 +3,7 @@ package io.legado.app.model.analyzeRule
 import android.text.TextUtils
 import androidx.annotation.Keep
 import com.google.gson.internal.LinkedTreeMap
+import io.legado.app.constant.AppLog
 import com.script.CompiledScript
 import com.script.buildScriptBindings
 import com.script.rhino.RhinoScriptEngine
@@ -43,6 +44,9 @@ import org.mozilla.javascript.NativeObject
 import org.mozilla.javascript.Scriptable
 import java.lang.ref.WeakReference
 import java.net.URL
+import androidx.appcompat.app.AppCompatActivity
+import io.legado.app.ui.widget.dialog.BottomWebViewDialog
+import io.legado.app.utils.showDialogFragment
 import java.util.Locale
 import java.util.regex.Pattern
 import kotlin.coroutines.ContinuationInterceptor
@@ -89,6 +93,45 @@ class AnalyzeRule(
     fun setRuleName(name: String) {
         if (name.isNotBlank()) {
             ruleName = name
+        }
+    }
+
+    private var activityRef: WeakReference<AppCompatActivity>? = null
+
+    fun setActivity(activity: AppCompatActivity): AnalyzeRule {
+        activityRef = WeakReference(activity)
+        return this
+    }
+
+    override fun startBrowser(url: String, title: String, html: String?) {
+        val activity = activityRef?.get()
+        AppLog.putDebug("[showCmt] AnalyzeRule.startBrowser called: url=$url, hasActivity=${activity != null}")
+        if (activity != null) {
+            showBrowser(url, html)
+        } else {
+            AppLog.putDebug("[showCmt] activityRef is null — fallback to super.startBrowser")
+            super.startBrowser(url, title, html)
+        }
+    }
+
+    @JvmOverloads
+    fun showBrowser(url: String, html: String? = null, preloadJs: String? = null, config: String? = null) {
+        val activity = activityRef?.get()
+        AppLog.putDebug("[showCmt] AnalyzeRule.showBrowser called: url=$url, activity=$activity")
+        if (activity == null) return
+        val bookType = (ruleData as? Book)?.type ?: 0
+        activity.runOnUiThread {
+            AppLog.putDebug("[showCmt] Showing BottomWebViewDialog on UI thread")
+            activity.showDialogFragment(
+                BottomWebViewDialog(
+                    source?.getKey() ?: "",
+                    bookType,
+                    url,
+                    html,
+                    preloadJs,
+                    config
+                )
+            )
         }
     }
 

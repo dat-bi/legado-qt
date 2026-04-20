@@ -161,6 +161,23 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
 
     }
 
+    private val streamHttpClient: okhttp3.OkHttpClient by lazy {
+        // Client riêng cho stream video: không callTimeout, không interceptor gây nhiễu
+        okhttp3.OkHttpClient.Builder()
+            .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(0, java.util.concurrent.TimeUnit.SECONDS)   // 0 = không timeout khi đọc stream
+            .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+            // Không có callTimeout - video stream có thể kéo dài hàng phút
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .sslSocketFactory(
+                io.legado.app.help.http.SSLHelper.unsafeSSLSocketFactory,
+                io.legado.app.help.http.SSLHelper.unsafeTrustManager
+            )
+            .hostnameVerifier(io.legado.app.help.http.SSLHelper.unsafeHostnameVerifier)
+            .build()
+    }
+
     private fun serveProxyStream(session: IHTTPSession): Response {
         val url = session.parameters["url"]?.firstOrNull()
             ?: return newFixedLengthResponse(Response.Status.BAD_REQUEST, "text/plain", "Missing url parameter")
@@ -168,6 +185,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
         val bookUrl = session.parameters["bookUrl"]?.firstOrNull()
         val headers = mutableMapOf<String, String>()
 
+        // 1. Lấy headers nền từ BookSource trong DB (Cookie, Authorization, ...)
         if (bookUrl != null) {
             val book = io.legado.app.data.appDb.bookDao.getBook(bookUrl)
             if (book != null) {
@@ -182,6 +200,18 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
             }
         }
 
+        // 2. Override/bổ sung bằng headers được frontend truyền qua query params (prefix "h_")
+        //    Ví dụ: h_Referer=https://www.bilibili.com/ → header "Referer"
+        session.parameters.forEach { (key, values) ->
+            if (key.startsWith("h_")) {
+                val headerName = key.removePrefix("h_")
+                val headerValue = values.firstOrNull()
+                if (!headerName.isBlank() && !headerValue.isNullOrBlank()) {
+                    headers[headerName] = headerValue
+                }
+            }
+        }
+
         val requestBuilder = okhttp3.Request.Builder().url(url)
         headers.forEach { (k, v) -> requestBuilder.header(k, v) }
 
@@ -189,7 +219,7 @@ class HttpServer(port: Int) : NanoHTTPD(port) {
             requestBuilder.header("Range", it)
         }
 
-        val response = io.legado.app.help.http.okHttpClient.newCall(requestBuilder.build()).execute()
+        val response = streamHttpClient.newCall(requestBuilder.build()).execute()
         val body = response.body
         val inputStream = body?.byteStream()
             ?: return newFixedLengthResponse(Response.Status.NOT_FOUND, "text/plain", "Stream not found")

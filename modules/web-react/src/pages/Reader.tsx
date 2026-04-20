@@ -195,36 +195,53 @@ const Reader = () => {
 
   const extractVideoUrl = useCallback((content: string): { type: 'bilibili' | 'youtube' | 'direct' | 'iframe'; url: string } | null => {
     const trimmed = content.trim();
-    const bvMatch = trimmed.match(/BV[\w]+/i) || trimmed.match(/bilibili\.com\/video\/(BV[\w]+)/i);
-    if (bvMatch) return { type: 'bilibili', url: `https://player.bilibili.com/player.html?bvid=${bvMatch[0]}&autoplay=0` };
-    const avMatch = trimmed.match(/aid[=:]?\s*(\d+)/i) || trimmed.match(/av(\d+)/i);
-    if (avMatch) return { type: 'bilibili', url: `https://player.bilibili.com/player.html?aid=${avMatch[1]}&autoplay=0` };
-    const ytMatch = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
-    if (ytMatch) return { type: 'youtube', url: `https://www.youtube.com/embed/${ytMatch[1]}` };
 
-    // Direct video link or m3u8
+    // 1. Direct video link or m3u8 — check FIRST to avoid false-positive BV matches inside CDN URLs
     const videoRegex = /(https?:\/\/[^\s"'<>]+?\.(?:mp4|webm|m3u8|mov|avi|flv)(?:\?[^\s"'<>]*)?)/i;
     const directMatch = trimmed.match(videoRegex);
     if (directMatch) return { type: 'direct', url: directMatch[1] };
 
-    // If it's a video book and it starts with http, treat it as a direct link
+    // 2. If it's a video book and it starts with http (no extension), treat as direct link
+    if (isVideo && /^https?:\/\/[^\s"'<>]+$/i.test(trimmed) && !trimmed.includes('bilibili.com') && !trimmed.includes('youtube.com')) {
+      return { type: 'direct', url: trimmed };
+    }
+
+    // 3. Bilibili BV ID — only match on bilibili.com URLs or standalone BV IDs (not embedded in CDN params)
+    //    Real BV IDs are word-boundary isolated, e.g. "BV1xx411c7mD"
+    const bvMatch = trimmed.match(/bilibili\.com\/video\/(BV[\w]+)/i) ||
+                    trimmed.match(/(?:^|[^a-zA-Z0-9_])(BV[A-Za-z0-9]{10,12})(?:[^a-zA-Z0-9_]|$)/);
+    if (bvMatch) {
+      const bvid = bvMatch[1];
+      return { type: 'bilibili', url: `https://player.bilibili.com/player.html?bvid=${bvid}&autoplay=0` };
+    }
+
+    // 4. Bilibili AV ID
+    const avMatch = trimmed.match(/aid[=:]?\s*(\d+)/i) || trimmed.match(/av(\d+)/i);
+    if (avMatch) return { type: 'bilibili', url: `https://player.bilibili.com/player.html?aid=${avMatch[1]}&autoplay=0` };
+
+    // 5. YouTube
+    const ytMatch = trimmed.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+    if (ytMatch) return { type: 'youtube', url: `https://www.youtube.com/embed/${ytMatch[1]}` };
+
+    // 6. If it's a video book and content is a plain http URL
     if (isVideo && /^https?:\/\/[^\s"'<>]+$/i.test(trimmed)) {
       return { type: 'direct', url: trimmed };
     }
 
+    // 7. iframe src
     const iframeMatch = trimmed.match(/src=["'](https?:\/\/[^"']+)["']/i);
     if (iframeMatch) return { type: 'iframe', url: iframeMatch[1] };
     return null;
   }, [isVideo]);
 
-  const renderChapterContent = useCallback((content: string) => {
+  const renderChapterContent = useCallback((content: string, chapterHeaders?: Record<string, string>) => {
     if (isVideoContent(content)) {
       const videoInfo = extractVideoUrl(content);
       if (videoInfo) {
         if (videoInfo.type === 'direct') {
           return (
             <div className="flex flex-col items-center">
-              <video src={getProxyStreamUrl(videoInfo.url, decodedUrl)} controls className="w-full max-w-3xl rounded-xl shadow-lg" style={{ maxHeight: '80vh' }} />
+              <video src={getProxyStreamUrl(videoInfo.url, decodedUrl, chapterHeaders)} controls className="w-full max-w-3xl rounded-xl shadow-lg" style={{ maxHeight: '80vh' }} />
             </div>
           );
         }
@@ -394,7 +411,7 @@ const Reader = () => {
                   {lc.title}
                 </h2>
 
-                {renderChapterContent(lc.content)}
+                {renderChapterContent(lc.content, lc.headers)}
               </div>
             ))}
 

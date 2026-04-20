@@ -133,8 +133,21 @@ export const testConnection = async (url: string): Promise<boolean> => {
 };
 
 // ─── Proxy Media Stream ───
-export const getProxyStreamUrl = (url: string, bookUrl: string): string => {
+export const getProxyStreamUrl = (
+  url: string,
+  bookUrl: string,
+  headers?: Record<string, string>
+): string => {
   const base = getBaseUrl();
   if (!base) return url;
-  return `${base}/proxyStream?url=${encodeURIComponent(url)}&bookUrl=${encodeURIComponent(bookUrl)}`;
+  let proxyUrl = `${base}/proxyStream?url=${encodeURIComponent(url)}&bookUrl=${encodeURIComponent(bookUrl)}`;
+  if (headers) {
+    // Lọc bỏ các header rỗng trước khi truyền
+    Object.entries(headers).forEach(([k, v]) => {
+      if (v && v.trim()) {
+        proxyUrl += `&h_${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
+      }
+    });
+  }
+  return proxyUrl;
 };

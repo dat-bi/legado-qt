@@ -300,9 +300,13 @@ class ContentTextView(context: Context, attrs: AttributeSet?) : View(context, at
                     else -> { //默认点击
                         if (!debounceClick) {
                             val click = column.click
+                            val src = column.src
                             if (!click.isNullOrBlank()) {
-                                callBack.clickImg(click, column.src)
+                                callBack.clickImg(click, src)
                                 handled = true
+                            } else {
+                                // fallback: xử lý "js" key trong src (tương thích SVG comment)
+                                handled = callBack.oldClickImg(src)
                             }
                         }
                     }
