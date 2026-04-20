@@ -227,6 +227,7 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
 
     private fun initAiTranslateButton() {
         btnAiTranslate = binding.titleBar.findViewById(R.id.btn_ai_translate)
+        btnAiTranslate?.visible()
         btnAiTranslate?.applyTint(primaryTextColor)
         btnAiTranslate?.setOnClickListener {
             val query = searchView.query?.toString()?.trim()
