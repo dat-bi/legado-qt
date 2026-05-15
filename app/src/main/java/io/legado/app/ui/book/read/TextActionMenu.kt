@@ -5,6 +5,8 @@ import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ResolveInfo
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.view.Gravity
@@ -13,27 +15,30 @@ import android.view.Menu
 import android.view.View
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import androidx.annotation.ColorInt
 import androidx.annotation.RequiresApi
 import androidx.appcompat.view.SupportMenuInflater
 import androidx.appcompat.view.menu.MenuBuilder
 import androidx.appcompat.view.menu.MenuItemImpl
-import androidx.core.view.isVisible
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import io.legado.app.R
 import io.legado.app.base.adapter.ItemViewHolder
 import io.legado.app.base.adapter.RecyclerAdapter
 import io.legado.app.constant.AppLog
-import io.legado.app.constant.PreferKey
 import io.legado.app.databinding.ItemTextBinding
 import io.legado.app.databinding.PopupActionMenuBinding
+import io.legado.app.help.config.ReadBookConfig
 import io.legado.app.help.config.AppConfig
-import io.legado.app.utils.getPrefBoolean
-import io.legado.app.utils.gone
+import io.legado.app.lib.theme.getPrimaryTextColor
+import io.legado.app.utils.ColorUtils
+import io.legado.app.utils.dpToPx
 import io.legado.app.utils.isAbsUrl
 import io.legado.app.utils.printOnDebug
 import io.legado.app.utils.sendToClip
 import io.legado.app.utils.share
 import io.legado.app.utils.toastOnUi
-import io.legado.app.utils.visible
 
 @SuppressLint("RestrictedApi")
 class TextActionMenu(private val context: Context, private val callBack: CallBack) :
@@ -44,9 +49,7 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         setHasStableIds(true)
     }
     private val menuItems: List<MenuItemImpl>
-    private val visibleMenuItems = arrayListOf<MenuItemImpl>()
-    private val moreMenuItems = arrayListOf<MenuItemImpl>()
-    private val expandTextMenu get() = context.getPrefBoolean(PreferKey.expandTextMenu)
+    private var menuTextColor: Int = ContextCompat.getColor(context, R.color.primaryText)
 
     init {
         @SuppressLint("InflateParams")
@@ -63,42 +66,14 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
             onInitializeMenu(otherMenu)
         }
         menuItems = myMenu.visibleItems + otherMenu.visibleItems
-        visibleMenuItems.addAll(menuItems.subList(0, 5))
-        moreMenuItems.addAll(menuItems.subList(5, menuItems.size))
+        binding.recyclerView.layoutManager =
+            LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
         binding.recyclerView.adapter = adapter
-        binding.recyclerViewMore.adapter = adapter
-        setOnDismissListener {
-            if (!context.getPrefBoolean(PreferKey.expandTextMenu)) {
-                binding.ivMenuMore.setImageResource(R.drawable.ic_more_vert)
-                binding.recyclerViewMore.gone()
-                adapter.setItems(visibleMenuItems)
-                binding.recyclerView.visible()
-            }
-        }
-        binding.ivMenuMore.setOnClickListener {
-            if (binding.recyclerView.isVisible) {
-                binding.ivMenuMore.setImageResource(R.drawable.ic_arrow_back)
-                adapter.setItems(moreMenuItems)
-                binding.recyclerView.gone()
-                binding.recyclerViewMore.visible()
-            } else {
-                binding.ivMenuMore.setImageResource(R.drawable.ic_more_vert)
-                binding.recyclerViewMore.gone()
-                adapter.setItems(visibleMenuItems)
-                binding.recyclerView.visible()
-            }
-        }
         upMenu()
     }
 
     fun upMenu() {
-        if (expandTextMenu) {
-            adapter.setItems(menuItems)
-            binding.ivMenuMore.gone()
-        } else {
-            adapter.setItems(visibleMenuItems)
-            binding.ivMenuMore.visible()
-        }
+        adapter.setItems(menuItems)
     }
 
     fun show(
@@ -110,60 +85,61 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
         endX: Int,
         endBottomY: Int
     ) {
-        if (expandTextMenu) {
-            when {
-                startTopY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.BOTTOM or Gravity.START,
-                        startX,
-                        windowHeight - startTopY
-                    )
-                }
-
-                endBottomY - startBottomY > 500 -> {
-                    showAtLocation(view, Gravity.TOP or Gravity.START, startX, startBottomY)
-                }
-
-                else -> {
-                    showAtLocation(view, Gravity.TOP or Gravity.START, endX, endBottomY)
-                }
-            }
-        } else {
-            contentView.measure(
-                View.MeasureSpec.UNSPECIFIED,
-                View.MeasureSpec.UNSPECIFIED,
-            )
-            val popupHeight = contentView.measuredHeight
-            when {
-                startBottomY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        startX,
-                        startTopY - popupHeight
-                    )
-                }
-
-                endBottomY - startBottomY > 500 -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        startX,
-                        startBottomY
-                    )
-                }
-
-                else -> {
-                    showAtLocation(
-                        view,
-                        Gravity.TOP or Gravity.START,
-                        endX,
-                        endBottomY
-                    )
-                }
-            }
+        if (isShowing) {
+            dismiss()
         }
+        val screenPadding = 8.dpToPx()
+        val rootWidth = view.rootView.width.takeIf { it > 0 } ?: view.width
+        val maxPopupWidth = (rootWidth - screenPadding * 2).coerceAtLeast(56.dpToPx())
+        binding.recyclerView.layoutParams = binding.recyclerView.layoutParams.apply {
+            width = minOf(maxPopupWidth, menuItems.size * 56.dpToPx())
+        }
+        updateColors()
+        contentView.measure(
+            View.MeasureSpec.UNSPECIFIED,
+            View.MeasureSpec.UNSPECIFIED,
+        )
+        val popupWidth = contentView.measuredWidth
+        val popupHeight = contentView.measuredHeight
+        val maxX = (rootWidth - popupWidth - screenPadding).coerceAtLeast(screenPadding)
+        val maxY = (windowHeight - popupHeight - screenPadding).coerceAtLeast(screenPadding)
+
+        val spaceAbove = startTopY - screenPadding
+        val spaceBetween = endBottomY - startBottomY
+        val spaceBelow = windowHeight - endBottomY - screenPadding
+        val (anchorX, anchorY) = when {
+            spaceAbove >= popupHeight || spaceAbove >= spaceBetween && spaceAbove >= spaceBelow ->
+                startX to startTopY - popupHeight
+
+            spaceBetween >= popupHeight || spaceBetween >= spaceBelow ->
+                startX to startBottomY
+
+            else -> endX to endBottomY
+        }
+        showAtLocation(
+            view,
+            Gravity.TOP or Gravity.START,
+            anchorX.coerceIn(screenPadding, maxX),
+            anchorY.coerceIn(screenPadding, maxY)
+        )
+    }
+
+    private fun updateColors() {
+        val readBg = ReadBookConfig.bgMeanColor.takeIf { Color.alpha(it) != 0 }
+            ?: ContextCompat.getColor(context, R.color.background_card)
+        val menuBg = if (ColorUtils.isColorLight(readBg)) {
+            ColorUtils.shiftColor(readBg, 0.84f)
+        } else {
+            ColorUtils.shiftColor(readBg, 1.22f)
+        }
+        menuTextColor = context.getPrimaryTextColor(ColorUtils.isColorLight(menuBg))
+        binding.root.background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 8.dpToPx().toFloat()
+            setColor(menuBg)
+            setStroke(1, ColorUtils.adjustAlpha(menuTextColor, 0.12f))
+        }
+        adapter.notifyDataSetChanged()
     }
 
     inner class Adapter(context: Context) :
@@ -184,7 +160,17 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
             payloads: MutableList<Any>
         ) {
             with(binding) {
-                textView.text = item.title
+                textView.text = item.displayTitle()
+                textView.setTextColor(menuTextColor)
+                iconView.setColorFilter(menuTextColor)
+                val icon = item.iconResId()?.let { iconRes ->
+                    ContextCompat.getDrawable(context, iconRes)?.mutate()?.let { drawable ->
+                        DrawableCompat.setTint(drawable, menuTextColor)
+                        drawable
+                    }
+                }
+                iconView.setImageDrawable(icon)
+                iconView.visibility = if (icon == null) View.INVISIBLE else View.VISIBLE
             }
         }
 
@@ -207,6 +193,27 @@ class TextActionMenu(private val context: Context, private val callBack: CallBac
                 }
                 true
             }
+        }
+    }
+
+    private fun MenuItemImpl.iconResId(): Int? {
+        return when (itemId) {
+            R.id.menu_replace -> R.drawable.ic_edit
+            R.id.menu_copy -> R.drawable.ic_copy
+            R.id.menu_bookmark -> R.drawable.ic_bookmark
+            R.id.menu_aloud -> R.drawable.ic_volume_up
+            R.id.menu_dict -> R.drawable.ic_search_hint
+            R.id.menu_search_content -> R.drawable.ic_search
+            R.id.menu_browser -> R.drawable.ic_web_outline
+            R.id.menu_share_str -> R.drawable.ic_share
+            else -> R.drawable.ic_more
+        }
+    }
+
+    private fun MenuItemImpl.displayTitle(): CharSequence {
+        return when (itemId) {
+            R.id.menu_aloud -> context.getString(R.string.reading)
+            else -> title ?: ""
         }
     }
 
